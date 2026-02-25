@@ -146,31 +146,28 @@ export default function SourcesPage() {
 
       <section className="contracts-card">
         <div className="contracts-head">
-          <h2>Why do some rows use CoinGecko?</h2>
-          <p>RPC-first, but not every chain can be queried with ERC-20 style calls.</p>
+          <h2>Strict on-chain source policy</h2>
+          <p>Issuance totals are derived from chain-native methods only (no fallback attribution).</p>
         </div>
 
         <div style={{ padding: "1rem", lineHeight: 1.72 }}>
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
             <li>
-              <strong>source = rpc:</strong> we read <code>totalSupply()</code> directly on EVM contracts.
+              <strong>Source column:</strong> shows the exact on-chain mechanism used for each row (for example,
+              ERC-20 <code>totalSupply()</code>, Solana <code>getTokenSupply</code>, or XRPL
+              <code> gateway_balances</code>).
             </li>
             <li>
-              <strong>source = coingecko remainder:</strong> token-level circulating supply is known, but part of that
-              supply lives on ledgers where we do not yet have per-chain adapters.
+              <strong>Contract / Asset column:</strong> links to an external explorer whenever one is available.
             </li>
             <li>
-              <strong>chain = Other / Unattributed:</strong> the fallback remainder bucket. It means supply exists, but
-              we cannot attribute it to a specific chain with current on-chain adapters.
-            </li>
-            <li>
-              <strong>source = unavailable:</strong> either unsupported non-EVM chain format or missing/failed RPC
-              endpoint.
+              <strong>Unavailable rows:</strong> represent temporary read failures only; issuance is never backfilled via
+              CoinGecko fallback.
             </li>
           </ul>
           <p style={{ marginTop: "0.9rem", color: "#555d70" }}>
-            We can still move more of this to full on-chain by implementing chain-specific adapters (Solana mint
-            supply, Stellar issued assets, XRPL trust lines, Algorand assets, IBC/cosmos bank supply, etc.).
+            Internal identifiers are still available via hover tooltips for advanced debugging, but not shown as visible
+            primary labels.
           </p>
         </div>
       </section>
@@ -180,8 +177,8 @@ export default function SourcesPage() {
           <div className="contracts-head">
             <h2>Coverage summary</h2>
             <p>
-              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • rpc {stats.rpc} • coingecko {stats.coingecko}
-              {" "}• unavailable {stats.unavailable}
+              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • on-chain {stats.rpc} •
+              {" "}fallback {stats.coingecko} • unavailable {stats.unavailable}
             </p>
           </div>
         </section>

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "discover:eur": "node scripts/discover-eur-stables.mjs",
-    "check:solana": "node scripts/verify-solana-supply.mjs"
+    "check:solana": "node scripts/verify-solana-supply.mjs",
+    "check:strict-onchain": "node scripts/check-strict-onchain.mjs"
   },
   "dependencies": {
     "ethers": "^6.15.0",

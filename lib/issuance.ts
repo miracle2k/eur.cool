@@ -150,7 +150,6 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
 
     let nativeSupply = 0;
     let bridgedSupply = 0;
-    let rpcKnownSupply = 0;
 
     for (const contract of token.contracts) {
       const base: Omit<ContractSupply, "supply" | "decimals" | "source" | "method" | "status"> = {
@@ -164,7 +163,6 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
         const rpc = rpcByKey.get(keyFor(token.id, contract.chainId, contract.address));
         if (rpc?.status === "ok" && rpc.supply !== null && rpc.decimals !== null) {
           rpcSuccessContracts += 1;
-          rpcKnownSupply += rpc.supply;
           if (contract.kind === "bridged") {
             bridgedSupply += rpc.supply;
           } else {
@@ -198,7 +196,6 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
       const nonEvm = nonEvmByKey.get(keyFor(token.id, contract.chainId, contract.address));
       if (nonEvm?.status === "ok" && nonEvm.supply !== null && nonEvm.decimals !== null) {
         rpcSuccessContracts += 1;
-        rpcKnownSupply += nonEvm.supply;
         if (contract.kind === "bridged") {
           bridgedSupply += nonEvm.supply;
         } else {
@@ -240,23 +237,6 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
 
     const circulatingSupply = marketData?.circulatingSupply ?? null;
 
-    // If we can only resolve a subset on-chain, keep the remainder in an explicit bucket.
-    if (circulatingSupply !== null && circulatingSupply > rpcKnownSupply + 0.0001) {
-      const remainder = circulatingSupply - rpcKnownSupply;
-      nativeSupply += remainder;
-      contracts.push({
-        chainId: "other",
-        chainName: chainName("other"),
-        address: "coingecko:unattributed-remainder",
-        kind: "native",
-        supply: remainder,
-        decimals: null,
-        source: "coingecko",
-        method: "coingecko:circulating-supply-remainder",
-        status: "ok",
-      });
-    }
-
     return {
       id: token.id,
       symbol: token.symbol,
@@ -269,6 +249,16 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
       totalSupply: nativeSupply + bridgedSupply,
     };
   }).sort((a, b) => b.totalSupply - a.totalSupply);
+
+  const fallbackContracts = stablecoins
+    .flatMap((token) => token.contracts)
+    .filter((contract) => contract.source === "coingecko" || contract.chainId === "other");
+
+  if (fallbackContracts.length > 0) {
+    throw new Error(
+      `Strict on-chain policy violation: found ${fallbackContracts.length} fallback contract rows (coingecko/other).`,
+    );
+  }
 
   const chainMap = new Map<string, ChainAggregate>();
   const chainTokenSets = new Map<string, Set<string>>();

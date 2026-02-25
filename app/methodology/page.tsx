@@ -18,7 +18,7 @@ export default function MethodologyPage() {
       <section className="contracts-card">
         <div className="contracts-head">
           <h2>How numbers are computed</h2>
-          <p>RPC-first issuance tracker</p>
+          <p>Strict on-chain issuance tracker</p>
         </div>
 
         <div style={{ padding: "1rem", lineHeight: 1.75 }}>
@@ -28,13 +28,13 @@ export default function MethodologyPage() {
               <code> data/eurStablecoinRegistry.ts</code>.
             </li>
             <li>
-              <strong>Issuance source:</strong> For EVM contracts, <code>totalSupply()</code> is read directly from RPC
-              nodes (Alchemy + public fallbacks).
+              <strong>Issuance source:</strong> every included amount is read from a chain-native method (EVM
+              <code> totalSupply()</code>, Solana mint supply, Stellar issued balances, XRPL obligations, Algorand ASA
+              state, Cosmos bank denom supply, Tezos token totals, and IC ledger metrics).
             </li>
             <li>
-              <strong>Coverage fallback:</strong> if a token has non-EVM supply that cannot be resolved by RPC, an
-              unattributed remainder is estimated from CoinGecko circulating supply. See the
-              <Link href="/sources"> Sources</Link> page for per-contract attribution status.
+              <strong>No fallback attribution:</strong> production totals do not use CoinGecko remainder estimates.
+              When a chain read fails, that row is marked unavailable instead of being backfilled.
             </li>
             <li>
               <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 5m).
@@ -45,6 +45,9 @@ export default function MethodologyPage() {
               <code> data/issuance-history.json</code> and computes 1h/24h/7d/30d changes.
             </li>
           </ol>
+          <p style={{ marginTop: "0.8rem", color: "#555d70" }}>
+            See the <Link href="/sources">Sources</Link> page for contract-level method labels and explorer links.
+          </p>
         </div>
       </section>
     </main>
