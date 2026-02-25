@@ -289,7 +289,6 @@ export default function HomePage() {
           Home
         </Link>
         <Link href="/sources">Sources</Link>
-        <Link href="/methodology">Methodology</Link>
         <a href="https://x.com/usdc_cool" target="_blank" rel="noreferrer">
           @eur_cool
         </a>

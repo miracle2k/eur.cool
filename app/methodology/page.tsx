@@ -6,9 +6,6 @@ export default function MethodologyPage() {
       <nav className="top-nav">
         <Link href="/">Home</Link>
         <Link href="/sources">Sources</Link>
-        <Link href="/methodology" className="active">
-          Methodology
-        </Link>
         <a href="https://x.com/usdc_cool" target="_blank" rel="noreferrer">
           @eur_cool
         </a>

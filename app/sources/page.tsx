@@ -132,7 +132,6 @@ export default function SourcesPage() {
         <Link href="/sources" className="active">
           Sources
         </Link>
-        <Link href="/methodology">Methodology</Link>
         <a href="https://x.com/usdc_cool" target="_blank" rel="noreferrer">
           @eur_cool
         </a>
