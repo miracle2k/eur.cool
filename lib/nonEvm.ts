@@ -37,6 +37,10 @@ const COSMOS_DENOM_DECIMALS: Record<string, number> = {
   "ibc/5973C068568365FFF40DEDCF1A1CB7582B6116B731CD31A12231AE25E20B871F": 6,
 };
 
+const IC_LEDGER_DECIMALS: Record<string, number> = {
+  "wu6g4-6qaaa-aaaan-qmrza-cai": 6,
+};
+
 function envList(name: string): string[] {
   const raw = process.env[name];
   if (!raw) return [];
@@ -475,6 +479,49 @@ async function fetchTezosTokenSupply(address: string): Promise<NonEvmSupplyResul
   }
 }
 
+async function fetchInternetComputerSupply(canisterId: string): Promise<NonEvmSupplyResult> {
+  const endpoint = `https://${canisterId}.raw.icp0.io/metrics`;
+
+  try {
+    const res = await fetch(endpoint, {
+      headers: { accept: "text/plain" },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const text = await res.text();
+    const match = text.match(/^ledger_total_supply\s+([0-9]+)\b/m);
+    if (!match) {
+      throw new Error("Missing ledger_total_supply metric");
+    }
+
+    const decimals = IC_LEDGER_DECIMALS[canisterId] ?? 0;
+    const supply = bigintToDecimal(BigInt(match[1]), decimals);
+
+    if (!Number.isFinite(supply)) {
+      throw new Error("Invalid IC ledger supply value");
+    }
+
+    return {
+      ok: true,
+      supply,
+      decimals,
+      method: "ic:canister-metrics-ledger_total_supply",
+      endpoint,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "error",
+      error: `${endpoint}: ${asErrorMessage(error)}`.slice(0, 900),
+      method: "ic:canister-metrics-ledger_total_supply",
+    };
+  }
+}
+
 function encodeXrplCurrencyHex(currency: string): string {
   const upper = currency.toUpperCase();
   if (/^[A-F0-9]{40}$/.test(upper)) {
@@ -629,6 +676,10 @@ export async function fetchNonEvmTotalSupply(params: {
 
   if (params.chainId === "tezos") {
     return fetchTezosTokenSupply(params.address);
+  }
+
+  if (params.chainId === "internet-computer") {
+    return fetchInternetComputerSupply(params.address);
   }
 
   return {
