@@ -31,6 +31,7 @@ type NonEvmJobResult = {
   supply: number | null;
   decimals: number | null;
   status: "ok" | "error" | "unsupported";
+  method: string;
   error?: string;
 };
 
@@ -115,6 +116,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
         supply: result.supply,
         decimals: result.decimals,
         status: "ok",
+        method: result.method,
       };
     }
 
@@ -123,6 +125,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
       supply: null,
       decimals: null,
       status: result.status,
+      method: result.method,
       error: result.error,
     };
   });
@@ -150,7 +153,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     let rpcKnownSupply = 0;
 
     for (const contract of token.contracts) {
-      const base: Omit<ContractSupply, "supply" | "decimals" | "source" | "status"> = {
+      const base: Omit<ContractSupply, "supply" | "decimals" | "source" | "method" | "status"> = {
         chainId: contract.chainId,
         chainName: chainName(contract.chainId),
         address: contract.address,
@@ -173,6 +176,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
             supply: rpc.supply,
             decimals: rpc.decimals,
             source: "rpc",
+            method: "evm:erc20-totalSupply",
             status: "ok",
           });
         } else {
@@ -182,6 +186,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
             supply: null,
             decimals: null,
             source: "unavailable",
+            method: "evm:erc20-totalSupply",
             status: "error",
             error: rpc?.error ?? "RPC lookup failed",
           });
@@ -205,6 +210,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
           supply: nonEvm.supply,
           decimals: nonEvm.decimals,
           source: "rpc",
+          method: nonEvm.method,
           status: "ok",
         });
       } else if (nonEvm?.status === "unsupported") {
@@ -214,6 +220,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
           supply: null,
           decimals: null,
           source: "unavailable",
+          method: nonEvm.method,
           status: "unsupported",
           error: nonEvm.error,
         });
@@ -224,6 +231,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
           supply: null,
           decimals: null,
           source: "unavailable",
+          method: nonEvm?.method ?? "non-evm:unknown",
           status: "error",
           error: nonEvm?.error ?? "Non-EVM lookup failed",
         });
@@ -244,6 +252,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
         supply: remainder,
         decimals: null,
         source: "coingecko",
+        method: "coingecko:circulating-supply-remainder",
         status: "ok",
       });
     }

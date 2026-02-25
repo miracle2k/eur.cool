@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { IssuanceResponse } from "@/lib/types";
+import { assetExplorerUrl } from "@/lib/explorers";
 
 function formatCompact(value: number | null): string {
   if (value === null) return "—";
@@ -14,11 +15,23 @@ function formatCompact(value: number | null): string {
   }).format(value);
 }
 
-function humanSource(source: string, chainId: string): string {
-  if (source === "rpc") return "on-chain rpc";
-  if (source === "coingecko" && chainId === "other") return "coingecko remainder";
-  if (source === "coingecko") return "coingecko";
-  return "unavailable";
+const METHOD_LABELS: Record<string, string> = {
+  "evm:erc20-totalSupply": "ERC-20 totalSupply()",
+  "solana:getTokenSupply": "Solana getTokenSupply(mint)",
+  "stellar:horizon-assets": "Stellar Horizon /assets issued balances",
+  "xrpl:gateway_balances": "XRPL gateway_balances obligations",
+  "algorand:indexer-total-minus-reserve": "Algorand ASA total - reserve balance",
+  "cosmos:bank-supply-by-denom": "Cosmos bank supply/by_denom",
+  "tezos:tzkt-token-totalSupply": "Tezos token totalSupply (TzKT)",
+  "ic:canister-metrics-ledger_total_supply": "IC ledger_total_supply metric",
+  "coingecko:circulating-supply-remainder": "CoinGecko circulating-supply remainder",
+};
+
+function humanMethod(method: string, source: string): string {
+  const label = METHOD_LABELS[method];
+  if (label) return label;
+  if (source === "unavailable") return "Unavailable";
+  return method;
 }
 
 export default function SourcesPage() {
@@ -58,6 +71,8 @@ export default function SourcesPage() {
       supply: number | null;
       address: string;
       source: "rpc" | "coingecko" | "unavailable";
+      method: string;
+      explorerUrl: string | null;
       status: "ok" | "error" | "unsupported";
       error?: string;
     }> = [];
@@ -73,6 +88,8 @@ export default function SourcesPage() {
           supply: contract.supply,
           address: contract.address,
           source: contract.source,
+          method: contract.method,
+          explorerUrl: assetExplorerUrl(contract.chainId, contract.address),
           status: contract.status,
           error: contract.error,
         });
@@ -197,18 +214,21 @@ export default function SourcesPage() {
                     <td>
                       {row.tokenSymbol} <span className="token-name">{row.tokenName}</span>
                     </td>
-                    <td>
-                      {row.chainName}
-                      <span className="token-name"> ({row.chainId})</span>
-                    </td>
+                    <td title={`internal chain id: ${row.chainId}`}>{row.chainName}</td>
                     <td>
                       <span className={`pill ${row.kind}`}>{row.kind}</span>
                     </td>
                     <td>{formatCompact(row.supply)}</td>
                     <td className="mono tiny" title={row.address}>
-                      {row.address}
+                      {row.explorerUrl ? (
+                        <a href={row.explorerUrl} target="_blank" rel="noreferrer">
+                          {row.address}
+                        </a>
+                      ) : (
+                        row.address
+                      )}
                     </td>
-                    <td>{humanSource(row.source, row.chainId)}</td>
+                    <td title={row.method}>{humanMethod(row.method, row.source)}</td>
                     <td className={row.status === "ok" ? "ok" : "warn"} title={row.error}>
                       {row.status}
                     </td>

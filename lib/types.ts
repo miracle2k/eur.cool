@@ -18,6 +18,7 @@ export type ContractSupply = ContractDefinition & {
   supply: number | null;
   decimals: number | null;
   source: "rpc" | "coingecko" | "unavailable";
+  method: string;
   status: "ok" | "error" | "unsupported";
   error?: string;
 };
