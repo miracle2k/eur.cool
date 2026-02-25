@@ -59,6 +59,18 @@ function decimalPlaces(value: string): number {
   return fraction.length;
 }
 
+function bigintToDecimal(raw: bigint, decimals: number): number {
+  if (decimals <= 0) {
+    return Number(raw);
+  }
+
+  const scale = 10n ** BigInt(decimals);
+  const whole = raw / scale;
+  const fraction = raw % scale;
+  const value = `${whole.toString()}.${fraction.toString().padStart(decimals, "0")}`;
+  return Number(value);
+}
+
 function solanaRpcUrls(): string[] {
   return unique([
     ...envList("SOLANA_RPC_URLS"),
@@ -72,6 +84,14 @@ function xrplRpcUrls(): string[] {
     ...envList("XRPL_RPC_URLS"),
     ...(process.env.XRPL_RPC_URL ? [process.env.XRPL_RPC_URL] : []),
     "https://s1.ripple.com:51234",
+  ]);
+}
+
+function algorandIndexerUrls(): string[] {
+  return unique([
+    ...envList("ALGORAND_INDEXER_URLS"),
+    ...(process.env.ALGORAND_INDEXER_URL ? [process.env.ALGORAND_INDEXER_URL] : []),
+    "https://mainnet-idx.algonode.cloud",
   ]);
 }
 
@@ -238,6 +258,100 @@ async function fetchStellarIssuedSupply(address: string, symbol: string): Promis
   };
 }
 
+async function fetchAlgorandAsaSupply(assetIdRaw: string): Promise<NonEvmSupplyResult> {
+  const assetId = Number(assetIdRaw);
+  if (!Number.isInteger(assetId) || assetId <= 0) {
+    return {
+      ok: false,
+      status: "error",
+      error: `Invalid Algorand ASA id: ${assetIdRaw}`,
+      method: "algorand:indexer-assets",
+    };
+  }
+
+  const errors: string[] = [];
+
+  for (const endpoint of algorandIndexerUrls()) {
+    try {
+      const assetUrl = `${endpoint}/v2/assets/${assetId}`;
+      const assetRes = await fetch(assetUrl, {
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      });
+
+      if (!assetRes.ok) {
+        throw new Error(`Asset lookup HTTP ${assetRes.status}`);
+      }
+
+      const assetText = await assetRes.text();
+      const assetPayload = JSON.parse(assetText) as {
+        asset?: {
+          params?: {
+            decimals?: number;
+            reserve?: string;
+          };
+        };
+      };
+
+      const decimals = Number(assetPayload.asset?.params?.decimals ?? 0);
+      if (!Number.isFinite(decimals) || decimals < 0) {
+        throw new Error("Invalid Algorand decimals");
+      }
+
+      const totalMatch = assetText.match(/"total"\s*:\s*([0-9]+)/);
+      if (!totalMatch) {
+        throw new Error("Missing Algorand total field");
+      }
+      const totalRaw = BigInt(totalMatch[1]);
+
+      let reserveRaw = 0n;
+      const reserve = assetPayload.asset?.params?.reserve;
+      if (reserve) {
+        const accountUrl = `${endpoint}/v2/accounts/${reserve}`;
+        const accountRes = await fetch(accountUrl, {
+          headers: { accept: "application/json" },
+          cache: "no-store",
+        });
+
+        if (accountRes.ok) {
+          const accountText = await accountRes.text();
+          const amountRegex = new RegExp(
+            `\\{[^{}]*"amount"\\s*:\\s*([0-9]+)[^{}]*"asset-id"\\s*:\\s*${assetId}[^{}]*\\}`,
+          );
+          const amountMatch = accountText.match(amountRegex);
+          if (amountMatch) {
+            reserveRaw = BigInt(amountMatch[1]);
+          }
+        }
+      }
+
+      const issuedRaw = totalRaw > reserveRaw ? totalRaw - reserveRaw : totalRaw;
+      const supply = bigintToDecimal(issuedRaw, decimals);
+
+      if (!Number.isFinite(supply)) {
+        throw new Error("Invalid Algorand supply");
+      }
+
+      return {
+        ok: true,
+        supply,
+        decimals,
+        method: "algorand:indexer-total-minus-reserve",
+        endpoint,
+      };
+    } catch (error) {
+      errors.push(`${endpoint}: ${asErrorMessage(error)}`);
+    }
+  }
+
+  return {
+    ok: false,
+    status: "error",
+    error: errors.join(" | ").slice(0, 900),
+    method: "algorand:indexer-assets",
+  };
+}
+
 function encodeXrplCurrencyHex(currency: string): string {
   const upper = currency.toUpperCase();
   if (/^[A-F0-9]{40}$/.test(upper)) {
@@ -380,6 +494,10 @@ export async function fetchNonEvmTotalSupply(params: {
 
   if (params.chainId === "xrp") {
     return fetchXrplIssuedSupply(params.address, params.symbol);
+  }
+
+  if (params.chainId === "algorand") {
+    return fetchAlgorandAsaSupply(params.address);
   }
 
   return {
