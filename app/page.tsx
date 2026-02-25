@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IssuanceResponse, Interval, StablecoinIssuance } from "@/lib/types";
+import { IssuanceResponse, Interval } from "@/lib/types";
 
 const INTERVAL_LABELS: Record<Interval, string> = {
   month: "Past month",
@@ -275,39 +275,6 @@ export default function HomePage() {
     [chainGroupRows, groupMode, stablecoinGroupRows],
   );
 
-  const tokenRows = useMemo(() => {
-    if (!data) return [];
-
-    const rows: Array<{
-      token: StablecoinIssuance;
-      chainName: string;
-      chainId: string;
-      address: string;
-      kind: "native" | "bridged";
-      supply: number | null;
-      source: string;
-      status: string;
-    }> = [];
-
-    for (const token of data.stablecoins) {
-      for (const contract of token.contracts) {
-        if (!includeBridged && contract.kind === "bridged") continue;
-        rows.push({
-          token,
-          chainName: contract.chainName,
-          chainId: contract.chainId,
-          address: contract.address,
-          kind: contract.kind,
-          supply: contract.supply,
-          source: contract.source,
-          status: contract.status,
-        });
-      }
-    }
-
-    return rows.sort((a, b) => (b.supply ?? -1) - (a.supply ?? -1));
-  }, [data, includeBridged]);
-
   function toggleExpanded(rowKey: string) {
     setExpandedRows((prev) => ({
       ...prev,
@@ -321,7 +288,7 @@ export default function HomePage() {
         <Link href="/" className="active">
           Home
         </Link>
-        <Link href="/bridges">Bridges</Link>
+        <Link href="/sources">Sources</Link>
         <Link href="/methodology">Methodology</Link>
         <a href="https://x.com/usdc_cool" target="_blank" rel="noreferrer">
           @eur_cool
@@ -458,48 +425,9 @@ export default function HomePage() {
             })}
           </section>
 
-          <section className="contracts-card">
-            <div className="contracts-head">
-              <h2>Tracked contracts</h2>
-              <p>
-                {data.sourceStats.trackedTokens} tokens • {data.sourceStats.trackedContracts} contracts • RPC ok{" "}
-                {data.sourceStats.rpcSuccessContracts}
-              </p>
-            </div>
-
-            <div className="contracts-table-wrap">
-              <table className="contracts-table">
-                <thead>
-                  <tr>
-                    <th>Token</th>
-                    <th>Chain</th>
-                    <th>Type</th>
-                    <th>Issued</th>
-                    <th>Contract</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tokenRows.map((row, index) => (
-                    <tr key={`${row.token.id}-${row.chainId}-${index}`}>
-                      <td>
-                        {row.token.symbol} <span className="token-name">{row.token.name}</span>
-                      </td>
-                      <td>{row.chainName}</td>
-                      <td>
-                        <span className={`pill ${row.kind}`}>{row.kind}</span>
-                      </td>
-                      <td>{row.supply === null ? "—" : formatCompact(row.supply)}</td>
-                      <td className="mono tiny" title={row.address}>
-                        {row.address}
-                      </td>
-                      <td className={row.status === "ok" ? "ok" : "warn"}>{row.source}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <p className="group-hint">
+            Contract-level data sources have moved to the <Link href="/sources">Sources</Link> page.
+          </p>
         </>
       ) : null}
     </main>

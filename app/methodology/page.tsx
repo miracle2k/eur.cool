@@ -5,7 +5,7 @@ export default function MethodologyPage() {
     <main className="page">
       <nav className="top-nav">
         <Link href="/">Home</Link>
-        <Link href="/bridges">Bridges</Link>
+        <Link href="/sources">Sources</Link>
         <Link href="/methodology" className="active">
           Methodology
         </Link>
@@ -36,7 +36,8 @@ export default function MethodologyPage() {
             </li>
             <li>
               <strong>Coverage fallback:</strong> if a token has non-EVM supply that cannot be resolved by RPC, an
-              unattributed remainder is estimated from CoinGecko circulating supply.
+              unattributed remainder is estimated from CoinGecko circulating supply. See the
+              <Link href="/sources"> Sources</Link> page for per-contract attribution status.
             </li>
             <li>
               <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 5m).
