@@ -419,6 +419,62 @@ async function fetchCosmosIbcDenomSupply(chainId: string, denom: string): Promis
   }
 }
 
+async function fetchTezosTokenSupply(address: string): Promise<NonEvmSupplyResult> {
+  const endpoint = process.env.TEZOS_INDEXER_URL?.trim() || "https://api.tzkt.io";
+
+  const [contract, tokenIdRaw] = address.split(":", 2);
+  const tokenId = tokenIdRaw ?? "0";
+
+  try {
+    const url = `${endpoint}/v1/tokens?contract=${encodeURIComponent(contract)}&tokenId=${encodeURIComponent(tokenId)}&limit=1`;
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const payload = (await res.json()) as Array<{
+      totalSupply?: string;
+      metadata?: {
+        decimals?: string;
+      };
+    }>;
+
+    const record = payload[0];
+    if (!record?.totalSupply) {
+      throw new Error(`No token metadata returned for ${contract}:${tokenId}`);
+    }
+
+    const decimals = Number(record.metadata?.decimals ?? "0");
+    if (!Number.isFinite(decimals) || decimals < 0) {
+      throw new Error("Invalid Tezos token decimals");
+    }
+
+    const supply = bigintToDecimal(BigInt(record.totalSupply), decimals);
+    if (!Number.isFinite(supply)) {
+      throw new Error("Invalid Tezos supply value");
+    }
+
+    return {
+      ok: true,
+      supply,
+      decimals,
+      method: "tezos:tzkt-token-totalSupply",
+      endpoint,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "error",
+      error: `${endpoint}: ${asErrorMessage(error)}`.slice(0, 900),
+      method: "tezos:tzkt-token-totalSupply",
+    };
+  }
+}
+
 function encodeXrplCurrencyHex(currency: string): string {
   const upper = currency.toUpperCase();
   if (/^[A-F0-9]{40}$/.test(upper)) {
@@ -569,6 +625,10 @@ export async function fetchNonEvmTotalSupply(params: {
 
   if (params.chainId === "osmosis" || params.chainId === "terra-2") {
     return fetchCosmosIbcDenomSupply(params.chainId, params.address);
+  }
+
+  if (params.chainId === "tezos") {
+    return fetchTezosTokenSupply(params.address);
   }
 
   return {
