@@ -26,6 +26,17 @@ type StellarAssetRecord = {
   };
 };
 
+const COSMOS_REST_BY_CHAIN: Record<string, string> = {
+  osmosis: "https://rest.cosmos.directory/osmosis",
+  "terra-2": "https://rest.cosmos.directory/terra2",
+};
+
+const COSMOS_DENOM_DECIMALS: Record<string, number> = {
+  "ibc/92AE2F53284505223A1BB80D132F859A00E190C6A738772F0B3EF65E20BA484F": 6,
+  "ibc/8D52B251B447B7160421ACFBD50F6B0ABE5F98D2C404B03701130F12044439A1": 6,
+  "ibc/5973C068568365FFF40DEDCF1A1CB7582B6116B731CD31A12231AE25E20B871F": 6,
+};
+
 function envList(name: string): string[] {
   const raw = process.env[name];
   if (!raw) return [];
@@ -352,6 +363,62 @@ async function fetchAlgorandAsaSupply(assetIdRaw: string): Promise<NonEvmSupplyR
   };
 }
 
+async function fetchCosmosIbcDenomSupply(chainId: string, denom: string): Promise<NonEvmSupplyResult> {
+  const endpoint = COSMOS_REST_BY_CHAIN[chainId];
+  if (!endpoint) {
+    return {
+      ok: false,
+      status: "unsupported",
+      error: `Unsupported Cosmos chain for denom lookup: ${chainId}`,
+      method: "cosmos:bank-supply-by-denom",
+    };
+  }
+
+  try {
+    const url = `${endpoint}/cosmos/bank/v1beta1/supply/by_denom?denom=${encodeURIComponent(denom)}`;
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const payload = (await res.json()) as {
+      amount?: {
+        amount?: string;
+      };
+    };
+
+    const rawAmount = payload.amount?.amount;
+    if (!rawAmount) {
+      throw new Error("Missing Cosmos denom amount");
+    }
+
+    const decimals = COSMOS_DENOM_DECIMALS[denom] ?? 6;
+    const supply = bigintToDecimal(BigInt(rawAmount), decimals);
+    if (!Number.isFinite(supply)) {
+      throw new Error("Invalid Cosmos supply value");
+    }
+
+    return {
+      ok: true,
+      supply,
+      decimals,
+      method: "cosmos:bank-supply-by-denom",
+      endpoint,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "error",
+      error: `${endpoint}: ${asErrorMessage(error)}`.slice(0, 900),
+      method: "cosmos:bank-supply-by-denom",
+    };
+  }
+}
+
 function encodeXrplCurrencyHex(currency: string): string {
   const upper = currency.toUpperCase();
   if (/^[A-F0-9]{40}$/.test(upper)) {
@@ -498,6 +565,10 @@ export async function fetchNonEvmTotalSupply(params: {
 
   if (params.chainId === "algorand") {
     return fetchAlgorandAsaSupply(params.address);
+  }
+
+  if (params.chainId === "osmosis" || params.chainId === "terra-2") {
+    return fetchCosmosIbcDenomSupply(params.chainId, params.address);
   }
 
   return {
