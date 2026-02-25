@@ -54,11 +54,24 @@ function toNumber(value: string | number | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function decimalPlaces(value: string): number {
+  const [, fraction = ""] = value.split(".", 2);
+  return fraction.length;
+}
+
 function solanaRpcUrls(): string[] {
   return unique([
     ...envList("SOLANA_RPC_URLS"),
     ...(process.env.SOLANA_RPC_URL ? [process.env.SOLANA_RPC_URL] : []),
     "https://solana-rpc.publicnode.com",
+  ]);
+}
+
+function xrplRpcUrls(): string[] {
+  return unique([
+    ...envList("XRPL_RPC_URLS"),
+    ...(process.env.XRPL_RPC_URL ? [process.env.XRPL_RPC_URL] : []),
+    "https://s1.ripple.com:51234",
   ]);
 }
 
@@ -225,6 +238,133 @@ async function fetchStellarIssuedSupply(address: string, symbol: string): Promis
   };
 }
 
+function encodeXrplCurrencyHex(currency: string): string {
+  const upper = currency.toUpperCase();
+  if (/^[A-F0-9]{40}$/.test(upper)) {
+    return upper;
+  }
+
+  const ascii = upper.slice(0, 20);
+  const hex = Buffer.from(ascii, "ascii").toString("hex").toUpperCase();
+  return hex.padEnd(40, "0");
+}
+
+function decodeXrplCurrencyHex(hex: string): string {
+  if (!/^[A-F0-9]{40}$/.test(hex)) return "";
+
+  const out = Buffer.from(hex, "hex")
+    .toString("ascii")
+    .replace(/\0+$/g, "")
+    .trim();
+
+  return out.toUpperCase();
+}
+
+function parseXrplAssetReference(address: string, fallbackSymbol: string): { currency: string; issuer: string } {
+  if (address.includes(".")) {
+    const [currency, issuer] = address.split(".", 2);
+    if (currency && issuer) {
+      return { currency: currency.toUpperCase(), issuer };
+    }
+  }
+
+  if (address.includes("-")) {
+    const [currency, issuer] = address.split("-", 2);
+    if (currency && issuer) {
+      return { currency: currency.toUpperCase(), issuer };
+    }
+  }
+
+  return {
+    currency: sanitizeSymbol(fallbackSymbol),
+    issuer: address,
+  };
+}
+
+async function fetchXrplIssuedSupply(address: string, symbol: string): Promise<NonEvmSupplyResult> {
+  const { currency, issuer } = parseXrplAssetReference(address, symbol);
+  const desiredHex = encodeXrplCurrencyHex(currency);
+  const desiredText = sanitizeSymbol(currency);
+  const errors: string[] = [];
+
+  for (const endpoint of xrplRpcUrls()) {
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          method: "gateway_balances",
+          params: [{ account: issuer, ledger_index: "validated" }],
+        }),
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const payload = (await res.json()) as {
+        result?: {
+          obligations?: Record<string, string>;
+          result?: {
+            obligations?: Record<string, string>;
+          };
+        };
+      };
+
+      const obligations = payload.result?.obligations ?? payload.result?.result?.obligations ?? {};
+      const entries = Object.entries(obligations);
+      if (!entries.length) {
+        throw new Error("No XRPL obligations found for issuer");
+      }
+
+      const match = entries.find(([key]) => {
+        const normalized = key.toUpperCase();
+        if (normalized === desiredText || normalized === desiredHex) {
+          return true;
+        }
+
+        if (/^[A-F0-9]{40}$/.test(normalized)) {
+          const decoded = decodeXrplCurrencyHex(normalized);
+          return decoded === desiredText;
+        }
+
+        return false;
+      });
+
+      if (!match) {
+        throw new Error(`No XRPL obligation for currency ${currency}`);
+      }
+
+      const rawAmount = match[1];
+      const supply = Number(rawAmount);
+      if (!Number.isFinite(supply)) {
+        throw new Error(`Invalid XRPL amount: ${rawAmount}`);
+      }
+
+      return {
+        ok: true,
+        supply,
+        decimals: Math.min(decimalPlaces(rawAmount), 18),
+        method: "xrpl:gateway_balances",
+        endpoint,
+      };
+    } catch (error) {
+      errors.push(`${endpoint}: ${asErrorMessage(error)}`);
+    }
+  }
+
+  return {
+    ok: false,
+    status: "error",
+    error: errors.join(" | ").slice(0, 900),
+    method: "xrpl:gateway_balances",
+  };
+}
+
 export async function fetchNonEvmTotalSupply(params: {
   chainId: string;
   address: string;
@@ -236,6 +376,10 @@ export async function fetchNonEvmTotalSupply(params: {
 
   if (params.chainId === "stellar") {
     return fetchStellarIssuedSupply(params.address, params.symbol);
+  }
+
+  if (params.chainId === "xrp") {
+    return fetchXrplIssuedSupply(params.address, params.symbol);
   }
 
   return {
