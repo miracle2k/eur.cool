@@ -79,7 +79,7 @@ export const EVM_RPC_URLS: Record<string, RpcResolver> = {
   ],
   fraxtal: () => ["https://rpc.frax.com"],
   "q-mainnet": () => ["https://rpc.q.org"],
-  plasma: () => [],
+  plasma: () => ["https://rpc.plasma.to"],
   evmos: () => ["https://evmos-evm.publicnode.com"],
 };
 
