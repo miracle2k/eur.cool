@@ -24,6 +24,31 @@ const CHAIN_COLORS: Record<string, string> = {
   other: "#64748b",
 };
 
+const TOKEN_COLORS = ["#2f5ef9", "#7c3aed", "#0284c7", "#0f766e", "#c2410c", "#9f1239", "#1d4ed8"];
+
+type GroupMode = "stablecoin" | "chain";
+
+type BreakdownRow = {
+  key: string;
+  primary: string;
+  secondary: string;
+  kind: "native" | "bridged";
+  supply: number;
+  contractCount: number;
+};
+
+type GroupRow = {
+  key: string;
+  title: string;
+  subtitle: string;
+  iconText: string;
+  iconColor: string;
+  nativeSupply: number;
+  bridgedSupply: number;
+  shownSupply: number;
+  breakdown: BreakdownRow[];
+};
+
 function formatLarge(value: number): string {
   if (value >= 1_000_000_000) return `€${(value / 1_000_000_000).toFixed(2)}B`;
   if (value >= 1_000_000) return `€${(value / 1_000_000).toFixed(2)}M`;
@@ -63,12 +88,28 @@ function formatTimestamp(iso: string): string {
   });
 }
 
+function stablecoinColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  return TOKEN_COLORS[Math.abs(hash) % TOKEN_COLORS.length];
+}
+
+function badgeLabel(nativeSupply: number, bridgedSupply: number): string {
+  if (nativeSupply > 0 && bridgedSupply > 0) return "NATIVE + BRIDGED";
+  if (bridgedSupply > 0) return "BRIDGED";
+  return "NATIVE";
+}
+
 export default function HomePage() {
   const [data, setData] = useState<IssuanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeBridged, setIncludeBridged] = useState(true);
+  const [groupMode, setGroupMode] = useState<GroupMode>("stablecoin");
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   async function loadData(force = false) {
     setLoading((prev) => (data ? prev : true));
@@ -110,21 +151,129 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    setExpandedRows({});
+  }, [groupMode, includeBridged]);
+
   const totalIssued = useMemo(() => {
     if (!data) return 0;
     return includeBridged ? data.totals.withBridged : data.totals.native;
   }, [data, includeBridged]);
 
-  const chainRows = useMemo(() => {
+  const stablecoinGroupRows = useMemo<GroupRow[]>(() => {
     if (!data) return [];
-    return [...data.chains]
-      .map((chain) => ({
-        ...chain,
-        shownSupply: includeBridged ? chain.totalSupply : chain.nativeSupply,
-      }))
-      .filter((chain) => chain.shownSupply > 0)
+
+    return data.stablecoins
+      .map((token) => {
+        const breakdownMap = new Map<string, BreakdownRow>();
+
+        for (const contract of token.contracts) {
+          if (contract.supply === null) continue;
+          if (!includeBridged && contract.kind === "bridged") continue;
+
+          const breakdownKey = `${contract.chainId}::${contract.kind}`;
+          const existing = breakdownMap.get(breakdownKey) ?? {
+            key: breakdownKey,
+            primary: contract.chainName,
+            secondary: contract.chainId,
+            kind: contract.kind,
+            supply: 0,
+            contractCount: 0,
+          };
+
+          existing.supply += contract.supply;
+          existing.contractCount += 1;
+          breakdownMap.set(breakdownKey, existing);
+        }
+
+        const bridgedShown = includeBridged ? token.bridgedSupply : 0;
+        const shownSupply = token.nativeSupply + bridgedShown;
+
+        return {
+          key: token.id,
+          title: token.symbol,
+          subtitle: token.name,
+          iconText: token.symbol.slice(0, 2).toUpperCase(),
+          iconColor: stablecoinColor(token.symbol),
+          nativeSupply: token.nativeSupply,
+          bridgedSupply: bridgedShown,
+          shownSupply,
+          breakdown: [...breakdownMap.values()].sort((a, b) => b.supply - a.supply),
+        };
+      })
+      .filter((row) => row.shownSupply > 0)
       .sort((a, b) => b.shownSupply - a.shownSupply);
   }, [data, includeBridged]);
+
+  const chainGroupRows = useMemo<GroupRow[]>(() => {
+    if (!data) return [];
+
+    const chainMap = new Map<
+      string,
+      {
+        chainName: string;
+        nativeSupply: number;
+        bridgedSupply: number;
+        breakdownMap: Map<string, BreakdownRow>;
+      }
+    >();
+
+    for (const token of data.stablecoins) {
+      for (const contract of token.contracts) {
+        if (contract.supply === null) continue;
+        if (!includeBridged && contract.kind === "bridged") continue;
+
+        const chainGroup = chainMap.get(contract.chainId) ?? {
+          chainName: contract.chainName,
+          nativeSupply: 0,
+          bridgedSupply: 0,
+          breakdownMap: new Map<string, BreakdownRow>(),
+        };
+
+        if (contract.kind === "bridged") {
+          chainGroup.bridgedSupply += contract.supply;
+        } else {
+          chainGroup.nativeSupply += contract.supply;
+        }
+
+        const breakdownKey = `${token.id}::${contract.kind}`;
+        const existing = chainGroup.breakdownMap.get(breakdownKey) ?? {
+          key: breakdownKey,
+          primary: token.symbol,
+          secondary: token.name,
+          kind: contract.kind,
+          supply: 0,
+          contractCount: 0,
+        };
+
+        existing.supply += contract.supply;
+        existing.contractCount += 1;
+        chainGroup.breakdownMap.set(breakdownKey, existing);
+
+        chainMap.set(contract.chainId, chainGroup);
+      }
+    }
+
+    return [...chainMap.entries()]
+      .map(([chainId, group]) => ({
+        key: chainId,
+        title: group.chainName,
+        subtitle: chainId,
+        iconText: group.chainName.slice(0, 1).toUpperCase(),
+        iconColor: CHAIN_COLORS[chainId] ?? "#94a3b8",
+        nativeSupply: group.nativeSupply,
+        bridgedSupply: group.bridgedSupply,
+        shownSupply: group.nativeSupply + group.bridgedSupply,
+        breakdown: [...group.breakdownMap.values()].sort((a, b) => b.supply - a.supply),
+      }))
+      .filter((row) => row.shownSupply > 0)
+      .sort((a, b) => b.shownSupply - a.shownSupply);
+  }, [data, includeBridged]);
+
+  const activeGroupRows = useMemo(
+    () => (groupMode === "stablecoin" ? stablecoinGroupRows : chainGroupRows),
+    [chainGroupRows, groupMode, stablecoinGroupRows],
+  );
 
   const tokenRows = useMemo(() => {
     if (!data) return [];
@@ -158,6 +307,13 @@ export default function HomePage() {
 
     return rows.sort((a, b) => (b.supply ?? -1) - (a.supply ?? -1));
   }, [data, includeBridged]);
+
+  function toggleExpanded(rowKey: string) {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [rowKey]: !prev[rowKey],
+    }));
+  }
 
   return (
     <main className="page">
@@ -218,31 +374,86 @@ export default function HomePage() {
           </div>
 
           <section className="list-card">
-            {chainRows.map((chain) => {
-              const badge =
-                chain.nativeSupply > 0 && chain.bridgedSupply > 0
-                  ? "NATIVE + BRIDGED"
-                  : chain.bridgedSupply > 0
-                    ? "BRIDGED"
-                    : "NATIVE";
+            <div className="group-tabs" role="tablist" aria-label="Grouping mode">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={groupMode === "stablecoin"}
+                className={`group-tab ${groupMode === "stablecoin" ? "active" : ""}`}
+                onClick={() => setGroupMode("stablecoin")}
+              >
+                By stablecoin
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={groupMode === "chain"}
+                className={`group-tab ${groupMode === "chain" ? "active" : ""}`}
+                onClick={() => setGroupMode("chain")}
+              >
+                By chain
+              </button>
+            </div>
+
+            <p className="group-hint">
+              Click a row to expand breakdown by{" "}
+              {groupMode === "stablecoin" ? "chain + native/bridged" : "stablecoin + native/bridged"} tuples.
+            </p>
+
+            {activeGroupRows.map((row) => {
+              const expansionKey = `${groupMode}:${row.key}`;
+              const expanded = !!expandedRows[expansionKey];
 
               return (
-                <div className="chain-row" key={chain.chainId}>
-                  <div className="chain-meta">
-                    <span
-                      className="chain-icon"
-                      style={{ backgroundColor: CHAIN_COLORS[chain.chainId] ?? "#94a3b8" }}
-                      aria-hidden
-                    >
-                      {chain.chainName.slice(0, 1)}
-                    </span>
-                    <div>
-                      <p className="chain-badge">{badge}</p>
-                      <p className="chain-name">{chain.chainName}</p>
+                <article className="group-row" key={expansionKey}>
+                  <button
+                    type="button"
+                    className="group-row-main"
+                    aria-expanded={expanded}
+                    onClick={() => toggleExpanded(expansionKey)}
+                  >
+                    <div className="group-meta">
+                      <span className="group-icon" style={{ backgroundColor: row.iconColor }} aria-hidden>
+                        {row.iconText}
+                      </span>
+                      <div>
+                        <p className="group-badge">{badgeLabel(row.nativeSupply, row.bridgedSupply)}</p>
+                        <p className="group-name">{row.title}</p>
+                        <p className="group-subname">{row.subtitle}</p>
+                      </div>
                     </div>
-                  </div>
-                  <p className="chain-value">{formatPrecise(chain.shownSupply)}</p>
-                </div>
+                    <div className="group-right">
+                      <p className="group-value">{formatPrecise(row.shownSupply)}</p>
+                      <span className="group-expand" aria-hidden>
+                        {expanded ? "▾" : "▸"}
+                      </span>
+                    </div>
+                  </button>
+
+                  {expanded ? (
+                    <div className="group-breakdown">
+                      {row.breakdown.length === 0 ? (
+                        <p className="breakdown-empty">No resolved breakdown for this group yet.</p>
+                      ) : (
+                        row.breakdown.map((entry) => (
+                          <div className="breakdown-row" key={`${expansionKey}:${entry.key}`}>
+                            <div className="breakdown-left">
+                              <p className="breakdown-title">{entry.primary}</p>
+                              <p className="breakdown-subtitle">
+                                {entry.secondary}
+                                {entry.contractCount > 1 ? ` • ${entry.contractCount} contracts` : ""}
+                              </p>
+                            </div>
+                            <div className="breakdown-right">
+                              <span className={`pill ${entry.kind}`}>{entry.kind}</span>
+                              <span className="breakdown-value">{formatCompact(entry.supply)}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </article>
               );
             })}
           </section>
@@ -251,8 +462,7 @@ export default function HomePage() {
             <div className="contracts-head">
               <h2>Tracked contracts</h2>
               <p>
-                {data.sourceStats.trackedTokens} tokens • {data.sourceStats.trackedContracts} contracts •
-                RPC ok {" "}
+                {data.sourceStats.trackedTokens} tokens • {data.sourceStats.trackedContracts} contracts • RPC ok{" "}
                 {data.sourceStats.rpcSuccessContracts}
               </p>
             </div>
