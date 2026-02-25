@@ -106,6 +106,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     const result = await fetchNonEvmTotalSupply({
       chainId: job.chainId,
       address: job.address,
+      symbol: job.token.symbol,
     });
 
     if (result.ok) {
