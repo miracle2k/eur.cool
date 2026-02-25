@@ -31,10 +31,14 @@ type RpcResolver = (alchemyKey?: string) => string[];
 export const EVM_RPC_URLS: Record<string, RpcResolver> = {
   ethereum: (alchemyKey) => [
     ...(alchemyKey ? [`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`] : []),
+    "https://ethereum-rpc.publicnode.com",
+    "https://eth.llamarpc.com",
     "https://cloudflare-eth.com",
   ],
   base: (alchemyKey) => [
     ...(alchemyKey ? [`https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`] : []),
+    "https://base-rpc.publicnode.com",
+    "https://1rpc.io/base",
     "https://mainnet.base.org",
   ],
   avalanche: (alchemyKey) => [
@@ -43,6 +47,8 @@ export const EVM_RPC_URLS: Record<string, RpcResolver> = {
   ],
   "polygon-pos": (alchemyKey) => [
     ...(alchemyKey ? [`https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`] : []),
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://1rpc.io/matic",
     "https://polygon-rpc.com",
   ],
   "arbitrum-one": (alchemyKey) => [
