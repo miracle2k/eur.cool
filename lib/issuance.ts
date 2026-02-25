@@ -3,6 +3,7 @@ import { chainName, isEvmAddress, isEvmChain } from "@/lib/chains";
 import { fetchMarketDataByIds } from "@/lib/coingecko";
 import { computeIntervalChanges, appendSnapshot, readHistory } from "@/lib/history";
 import { fetchEvmTotalSupply } from "@/lib/rpc";
+import { fetchNonEvmTotalSupply } from "@/lib/nonEvm";
 import {
   ChainAggregate,
   ContractSupply,
@@ -22,6 +23,14 @@ type RpcJobResult = {
   supply: number | null;
   decimals: number | null;
   status: "ok" | "error";
+  error?: string;
+};
+
+type NonEvmJobResult = {
+  key: string;
+  supply: number | null;
+  decimals: number | null;
+  status: "ok" | "error" | "unsupported";
   error?: string;
 };
 
@@ -57,12 +66,16 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
   const marketDataById = await fetchMarketDataByIds(tokenIds);
 
   const rpcJobs: RpcJob[] = [];
+  const nonEvmJobs: RpcJob[] = [];
+
   for (const token of EUR_STABLECOIN_REGISTRY) {
     for (const contract of token.contracts) {
-      if (!isEvmAddress(contract.address) || !isEvmChain(contract.chainId)) {
-        continue;
+      const job = { token, chainId: contract.chainId, address: contract.address };
+      if (isEvmAddress(contract.address) && isEvmChain(contract.chainId)) {
+        rpcJobs.push(job);
+      } else {
+        nonEvmJobs.push(job);
       }
-      rpcJobs.push({ token, chainId: contract.chainId, address: contract.address });
     }
   }
 
@@ -89,9 +102,38 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     };
   });
 
+  const nonEvmResults = await mapWithConcurrency(nonEvmJobs, 8, async (job): Promise<NonEvmJobResult> => {
+    const result = await fetchNonEvmTotalSupply({
+      chainId: job.chainId,
+      address: job.address,
+    });
+
+    if (result.ok) {
+      return {
+        key: keyFor(job.token.id, job.chainId, job.address),
+        supply: result.supply,
+        decimals: result.decimals,
+        status: "ok",
+      };
+    }
+
+    return {
+      key: keyFor(job.token.id, job.chainId, job.address),
+      supply: null,
+      decimals: null,
+      status: result.status,
+      error: result.error,
+    };
+  });
+
   const rpcByKey = new Map<string, RpcJobResult>();
   for (const result of rpcResults) {
     rpcByKey.set(result.key, result);
+  }
+
+  const nonEvmByKey = new Map<string, NonEvmJobResult>();
+  for (const result of nonEvmResults) {
+    nonEvmByKey.set(result.key, result);
   }
 
   let rpcSuccessContracts = 0;
@@ -114,7 +156,57 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
         kind: contract.kind,
       };
 
-      if (!isEvmAddress(contract.address) || !isEvmChain(contract.chainId)) {
+      if (isEvmAddress(contract.address) && isEvmChain(contract.chainId)) {
+        const rpc = rpcByKey.get(keyFor(token.id, contract.chainId, contract.address));
+        if (rpc?.status === "ok" && rpc.supply !== null && rpc.decimals !== null) {
+          rpcSuccessContracts += 1;
+          rpcKnownSupply += rpc.supply;
+          if (contract.kind === "bridged") {
+            bridgedSupply += rpc.supply;
+          } else {
+            nativeSupply += rpc.supply;
+          }
+
+          contracts.push({
+            ...base,
+            supply: rpc.supply,
+            decimals: rpc.decimals,
+            source: "rpc",
+            status: "ok",
+          });
+        } else {
+          failedContracts += 1;
+          contracts.push({
+            ...base,
+            supply: null,
+            decimals: null,
+            source: "unavailable",
+            status: "error",
+            error: rpc?.error ?? "RPC lookup failed",
+          });
+        }
+
+        continue;
+      }
+
+      const nonEvm = nonEvmByKey.get(keyFor(token.id, contract.chainId, contract.address));
+      if (nonEvm?.status === "ok" && nonEvm.supply !== null && nonEvm.decimals !== null) {
+        rpcSuccessContracts += 1;
+        rpcKnownSupply += nonEvm.supply;
+        if (contract.kind === "bridged") {
+          bridgedSupply += nonEvm.supply;
+        } else {
+          nativeSupply += nonEvm.supply;
+        }
+
+        contracts.push({
+          ...base,
+          supply: nonEvm.supply,
+          decimals: nonEvm.decimals,
+          source: "rpc",
+          status: "ok",
+        });
+      } else if (nonEvm?.status === "unsupported") {
         unsupportedContracts += 1;
         contracts.push({
           ...base,
@@ -122,26 +214,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
           decimals: null,
           source: "unavailable",
           status: "unsupported",
-        });
-        continue;
-      }
-
-      const rpc = rpcByKey.get(keyFor(token.id, contract.chainId, contract.address));
-      if (rpc?.status === "ok" && rpc.supply !== null && rpc.decimals !== null) {
-        rpcSuccessContracts += 1;
-        rpcKnownSupply += rpc.supply;
-        if (contract.kind === "bridged") {
-          bridgedSupply += rpc.supply;
-        } else {
-          nativeSupply += rpc.supply;
-        }
-
-        contracts.push({
-          ...base,
-          supply: rpc.supply,
-          decimals: rpc.decimals,
-          source: "rpc",
-          status: "ok",
+          error: nonEvm.error,
         });
       } else {
         failedContracts += 1;
@@ -151,7 +224,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
           decimals: null,
           source: "unavailable",
           status: "error",
-          error: rpc?.error ?? "RPC lookup failed",
+          error: nonEvm?.error ?? "Non-EVM lookup failed",
         });
       }
     }

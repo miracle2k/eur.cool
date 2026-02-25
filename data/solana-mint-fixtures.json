@@ -1,0 +1,17 @@
+[
+  {
+    "symbol": "EURC",
+    "mint": "HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr",
+    "expectedDecimals": 6
+  },
+  {
+    "symbol": "EURCV",
+    "mint": "DghpMkatCiUsofbTmid3M3kAbDTPqDwKiYHnudXeGG52",
+    "expectedDecimals": 2
+  },
+  {
+    "symbol": "VEUR",
+    "mint": "C4Kkr9NZU3VbyedcgutU6LKmi6MKz81sx6gRmk5pX519",
+    "expectedDecimals": 9
+  }
+]

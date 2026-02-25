@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "discover:eur": "node scripts/discover-eur-stables.mjs"
+    "discover:eur": "node scripts/discover-eur-stables.mjs",
+    "check:solana": "node scripts/verify-solana-supply.mjs"
   },
   "dependencies": {
     "ethers": "^6.15.0",
