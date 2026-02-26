@@ -31,7 +31,6 @@ type GroupMode = "stablecoin" | "chain";
 type BreakdownRow = {
   key: string;
   primary: string;
-  secondary: string;
   kind: "native" | "bridged";
   supply: number;
   contractCount: number;
@@ -40,11 +39,8 @@ type BreakdownRow = {
 type GroupRow = {
   key: string;
   title: string;
-  subtitle: string;
   iconText: string;
   iconColor: string;
-  nativeSupply: number;
-  bridgedSupply: number;
   shownSupply: number;
   breakdown: BreakdownRow[];
 };
@@ -94,12 +90,6 @@ function stablecoinColor(seed: string): string {
     hash = (hash * 31 + seed.charCodeAt(i)) | 0;
   }
   return TOKEN_COLORS[Math.abs(hash) % TOKEN_COLORS.length];
-}
-
-function badgeLabel(nativeSupply: number, bridgedSupply: number): string {
-  if (nativeSupply > 0 && bridgedSupply > 0) return "NATIVE + BRIDGED";
-  if (bridgedSupply > 0) return "BRIDGED";
-  return "NATIVE";
 }
 
 export default function HomePage() {
@@ -175,7 +165,6 @@ export default function HomePage() {
           const existing = breakdownMap.get(breakdownKey) ?? {
             key: breakdownKey,
             primary: contract.chainName,
-            secondary: contract.chainId,
             kind: contract.kind,
             supply: 0,
             contractCount: 0,
@@ -192,11 +181,8 @@ export default function HomePage() {
         return {
           key: token.id,
           title: token.symbol,
-          subtitle: token.name,
           iconText: token.symbol.slice(0, 2).toUpperCase(),
           iconColor: stablecoinColor(token.symbol),
-          nativeSupply: token.nativeSupply,
-          bridgedSupply: bridgedShown,
           shownSupply,
           breakdown: [...breakdownMap.values()].sort((a, b) => b.supply - a.supply),
         };
@@ -240,7 +226,6 @@ export default function HomePage() {
         const existing = chainGroup.breakdownMap.get(breakdownKey) ?? {
           key: breakdownKey,
           primary: token.symbol,
-          secondary: token.name,
           kind: contract.kind,
           supply: 0,
           contractCount: 0,
@@ -258,11 +243,8 @@ export default function HomePage() {
       .map(([chainId, group]) => ({
         key: chainId,
         title: group.chainName,
-        subtitle: chainId,
         iconText: group.chainName.slice(0, 1).toUpperCase(),
         iconColor: CHAIN_COLORS[chainId] ?? "#94a3b8",
-        nativeSupply: group.nativeSupply,
-        bridgedSupply: group.bridgedSupply,
         shownSupply: group.nativeSupply + group.bridgedSupply,
         breakdown: [...group.breakdownMap.values()].sort((a, b) => b.supply - a.supply),
       }))
@@ -289,14 +271,20 @@ export default function HomePage() {
           Home
         </Link>
         <Link href="/sources">Sources</Link>
-        <a href="https://x.com/usdc_cool" target="_blank" rel="noreferrer">
+        <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
           @eur_cool
         </a>
       </nav>
 
-      <h1 className="brand">
-        <span className="brand-icon">€</span> eur.cool
-      </h1>
+      <div className="brand-row">
+        <div />
+        <h1 className="brand">
+          <span className="brand-icon">€</span>.cool
+        </h1>
+        <button type="button" className="refresh top-refresh" onClick={triggerRefresh} disabled={refreshing}>
+          {refreshing ? "Refreshing…" : "Refresh now"}
+        </button>
+      </div>
 
       {loading && !data ? <p className="state">Loading issuance feed…</p> : null}
       {error ? <p className="state error">{error}</p> : null}
@@ -326,45 +314,37 @@ export default function HomePage() {
             </div>
           </section>
 
-          <div className="controls">
-            <button
-              type="button"
-              className={`toggle ${includeBridged ? "on" : "off"}`}
-              onClick={() => setIncludeBridged((prev) => !prev)}
-            >
-              Show Bridged EUR Stables
-            </button>
-            <button type="button" className="refresh" onClick={triggerRefresh} disabled={refreshing}>
-              {refreshing ? "Refreshing…" : "Refresh now"}
-            </button>
-          </div>
-
           <section className="list-card">
-            <div className="group-tabs" role="tablist" aria-label="Grouping mode">
+            <div className="group-toolbar">
+              <div className="group-tabs" role="tablist" aria-label="Grouping mode">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={groupMode === "stablecoin"}
+                  className={`group-tab ${groupMode === "stablecoin" ? "active" : ""}`}
+                  onClick={() => setGroupMode("stablecoin")}
+                >
+                  By stablecoin
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={groupMode === "chain"}
+                  className={`group-tab ${groupMode === "chain" ? "active" : ""}`}
+                  onClick={() => setGroupMode("chain")}
+                >
+                  By chain
+                </button>
+              </div>
+
               <button
                 type="button"
-                role="tab"
-                aria-selected={groupMode === "stablecoin"}
-                className={`group-tab ${groupMode === "stablecoin" ? "active" : ""}`}
-                onClick={() => setGroupMode("stablecoin")}
+                className={`toggle ${includeBridged ? "on" : "off"}`}
+                onClick={() => setIncludeBridged((prev) => !prev)}
               >
-                By stablecoin
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={groupMode === "chain"}
-                className={`group-tab ${groupMode === "chain" ? "active" : ""}`}
-                onClick={() => setGroupMode("chain")}
-              >
-                By chain
+                Include bridged
               </button>
             </div>
-
-            <p className="group-hint">
-              Click a row to expand breakdown by{" "}
-              {groupMode === "stablecoin" ? "chain + native/bridged" : "stablecoin + native/bridged"} tuples.
-            </p>
 
             {activeGroupRows.map((row) => {
               const expansionKey = `${groupMode}:${row.key}`;
@@ -382,10 +362,13 @@ export default function HomePage() {
                       <span className="group-icon" style={{ backgroundColor: row.iconColor }} aria-hidden>
                         {row.iconText}
                       </span>
-                      <div>
-                        <p className="group-badge">{badgeLabel(row.nativeSupply, row.bridgedSupply)}</p>
-                        <p className="group-name">{row.title}</p>
-                        <p className="group-subname">{row.subtitle}</p>
+                      <div className="group-label">
+                        <div className="group-name-row">
+                          <p className="group-name">{row.title}</p>
+                          {groupMode === "stablecoin" && includeBridged ? (
+                            <span className="mini-pill">Includes bridged</span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                     <div className="group-right">
@@ -404,14 +387,13 @@ export default function HomePage() {
                         row.breakdown.map((entry) => (
                           <div className="breakdown-row" key={`${expansionKey}:${entry.key}`}>
                             <div className="breakdown-left">
-                              <p className="breakdown-title">{entry.primary}</p>
-                              <p className="breakdown-subtitle">
-                                {entry.secondary}
+                              <p className="breakdown-title">
+                                {entry.primary}
                                 {entry.contractCount > 1 ? ` • ${entry.contractCount} contracts` : ""}
                               </p>
                             </div>
                             <div className="breakdown-right">
-                              <span className={`pill ${entry.kind}`}>{entry.kind}</span>
+                              {entry.kind === "bridged" ? <span className="pill bridged">bridged</span> : null}
                               <span className="breakdown-value">{formatCompact(entry.supply)}</span>
                             </div>
                           </div>
@@ -424,9 +406,10 @@ export default function HomePage() {
             })}
           </section>
 
-          <p className="group-hint">
-            Contract-level data sources have moved to the <Link href="/sources">Sources</Link> page.
-          </p>
+          <footer className="inspired-footer">
+            Inspired by the excellent <a href="https://usdc.cool/" target="_blank" rel="noreferrer">usdc.cool</a>{" "}
+            project.
+          </footer>
         </>
       ) : null}
     </main>
