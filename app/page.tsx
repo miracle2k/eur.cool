@@ -39,6 +39,7 @@ type BreakdownRow = {
 type GroupRow = {
   key: string;
   title: string;
+  subtitle?: string;
   iconText: string;
   iconColor: string;
   shownSupply: number;
@@ -181,6 +182,7 @@ export default function HomePage() {
         return {
           key: token.id,
           title: token.symbol,
+          subtitle: token.name,
           iconText: token.symbol.slice(0, 2).toUpperCase(),
           iconColor: stablecoinColor(token.symbol),
           shownSupply,
@@ -369,6 +371,9 @@ export default function HomePage() {
                             <span className="mini-pill">Includes bridged</span>
                           ) : null}
                         </div>
+                        {groupMode === "stablecoin" && row.subtitle ? (
+                          <p className="group-subname">{row.subtitle}</p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="group-right">
