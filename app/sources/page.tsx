@@ -133,44 +133,17 @@ export default function SourcesPage() {
           Sources
         </Link>
         <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
-          @eur_cool
+          @nix
         </a>
       </nav>
 
       <h1 className="brand">
-        <span className="brand-icon">€</span> sources
+        <span className="brand-icon">€</span>.cool
       </h1>
 
       {loading ? <p className="state">Loading source map…</p> : null}
       {error ? <p className="state error">{error}</p> : null}
 
-      <section className="contracts-card">
-        <div className="contracts-head">
-          <h2>Strict on-chain source policy</h2>
-          <p>Issuance totals are derived from chain-native methods only (no fallback attribution).</p>
-        </div>
-
-        <div style={{ padding: "1rem", lineHeight: 1.72 }}>
-          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            <li>
-              <strong>Source column:</strong> shows the exact on-chain mechanism used for each row (for example,
-              ERC-20 <code>totalSupply()</code>, Solana <code>getTokenSupply</code>, or XRPL
-              <code> gateway_balances</code>).
-            </li>
-            <li>
-              <strong>Contract / Asset column:</strong> links to an external explorer whenever one is available.
-            </li>
-            <li>
-              <strong>Unavailable rows:</strong> represent temporary read failures only; issuance is never backfilled via
-              CoinGecko fallback.
-            </li>
-          </ul>
-          <p style={{ marginTop: "0.9rem", color: "#555d70" }}>
-            Internal identifiers are still available via hover tooltips for advanced debugging, but not shown as visible
-            primary labels.
-          </p>
-        </div>
-      </section>
 
       {stats ? (
         <section className="contracts-card">

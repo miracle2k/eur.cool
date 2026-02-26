@@ -7,7 +7,7 @@ export default function MethodologyPage() {
         <Link href="/">Home</Link>
         <Link href="/sources">Sources</Link>
         <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
-          @eur_cool
+          @nix
         </a>
       </nav>
 

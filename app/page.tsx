@@ -238,13 +238,21 @@ export default function HomePage() {
         }
 
         const breakdownKey = `${token.id}::${contract.kind}`;
+        const explorerTarget = `${contract.chainId}:${contract.address}`;
         const existing = chainGroup.breakdownMap.get(breakdownKey) ?? {
           key: breakdownKey,
           primary: token.symbol,
           kind: contract.kind,
           supply: 0,
           contractCount: 0,
+          explorerUrl: assetExplorerUrl(contract.chainId, contract.address),
+          explorerTarget,
         };
+
+        if (existing.contractCount > 0 && existing.explorerTarget !== explorerTarget) {
+          existing.explorerUrl = null;
+          existing.explorerTarget = undefined;
+        }
 
         existing.supply += contract.supply;
         existing.contractCount += 1;
@@ -288,7 +296,7 @@ export default function HomePage() {
         </Link>
         <Link href="/sources">Sources</Link>
         <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
-          @eur_cool
+          @nix
         </a>
       </nav>
 
@@ -409,7 +417,7 @@ export default function HomePage() {
                                   {entry.primary}
                                   {entry.contractCount > 1 ? ` • ${entry.contractCount} contracts` : ""}
                                 </p>
-                                {groupMode === "stablecoin" && entry.explorerUrl ? (
+                                {entry.explorerUrl ? (
                                   <a
                                     className="breakdown-external"
                                     href={entry.explorerUrl}
