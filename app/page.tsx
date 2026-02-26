@@ -290,15 +290,26 @@ export default function HomePage() {
 
   return (
     <main className="page">
-      <nav className="top-nav">
-        <Link href="/" className="active">
-          Home
-        </Link>
-        <Link href="/sources">Sources</Link>
-        <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
-          @nix
+      <div className="header-line">
+        <div />
+        <nav className="top-nav">
+          <Link href="/" className="active">
+            Home
+          </Link>
+          <Link href="/sources">Sources</Link>
+          <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
+            @nix
+          </a>
+        </nav>
+        <a
+          className="header-cta"
+          href="https://github.com/miracle2k/eur.cool/issues/new"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Submit / correct data ↗
         </a>
-      </nav>
+      </div>
 
       <div className="brand-row">
         <div />

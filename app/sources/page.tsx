@@ -127,15 +127,26 @@ export default function SourcesPage() {
 
   return (
     <main className="page">
-      <nav className="top-nav">
-        <Link href="/">Home</Link>
-        <Link href="/sources" className="active">
-          Sources
-        </Link>
-        <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
-          @nix
+      <div className="header-line">
+        <div />
+        <nav className="top-nav">
+          <Link href="/">Home</Link>
+          <Link href="/sources" className="active">
+            Sources
+          </Link>
+          <a href="https://farcaster.xyz/nix" target="_blank" rel="noreferrer">
+            @nix
+          </a>
+        </nav>
+        <a
+          className="header-cta"
+          href="https://github.com/miracle2k/eur.cool/issues/new"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Submit / correct data ↗
         </a>
-      </nav>
+      </div>
 
       <h1 className="brand">
         <span className="brand-icon">€</span>.cool
@@ -208,6 +219,11 @@ export default function SourcesPage() {
           </div>
         </section>
       ) : null}
+
+      <footer className="inspired-footer">
+        Inspired by the excellent <a href="https://usdc.cool/" target="_blank" rel="noreferrer">usdc.cool</a>{" "}
+        project.
+      </footer>
     </main>
   );
 }
