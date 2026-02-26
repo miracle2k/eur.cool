@@ -367,9 +367,26 @@ a {
   min-width: 0;
 }
 
+.breakdown-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  max-width: 100%;
+}
+
 .breakdown-title {
   margin: 0;
   font-size: 0.9rem;
+}
+
+.breakdown-external {
+  color: #5f6370;
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.breakdown-external:hover {
+  color: #1f2937;
 }
 
 .breakdown-subtitle {

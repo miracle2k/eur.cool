@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { IssuanceResponse, Interval } from "@/lib/types";
+import { assetExplorerUrl } from "@/lib/explorers";
 
 const INTERVAL_LABELS: Record<Interval, string> = {
   month: "Past month",
@@ -34,6 +35,8 @@ type BreakdownRow = {
   kind: "native" | "bridged";
   supply: number;
   contractCount: number;
+  explorerUrl?: string | null;
+  explorerTarget?: string;
 };
 
 type GroupRow = {
@@ -42,6 +45,7 @@ type GroupRow = {
   subtitle?: string;
   iconText: string;
   iconColor: string;
+  hasBridged: boolean;
   shownSupply: number;
   breakdown: BreakdownRow[];
 };
@@ -163,13 +167,21 @@ export default function HomePage() {
           if (!includeBridged && contract.kind === "bridged") continue;
 
           const breakdownKey = `${contract.chainId}::${contract.kind}`;
+          const explorerTarget = `${contract.chainId}:${contract.address}`;
           const existing = breakdownMap.get(breakdownKey) ?? {
             key: breakdownKey,
             primary: contract.chainName,
             kind: contract.kind,
             supply: 0,
             contractCount: 0,
+            explorerUrl: assetExplorerUrl(contract.chainId, contract.address),
+            explorerTarget,
           };
+
+          if (existing.contractCount > 0 && existing.explorerTarget !== explorerTarget) {
+            existing.explorerUrl = null;
+            existing.explorerTarget = undefined;
+          }
 
           existing.supply += contract.supply;
           existing.contractCount += 1;
@@ -185,6 +197,7 @@ export default function HomePage() {
           subtitle: token.name,
           iconText: token.symbol.slice(0, 2).toUpperCase(),
           iconColor: stablecoinColor(token.symbol),
+          hasBridged: token.bridgedSupply > 0,
           shownSupply,
           breakdown: [...breakdownMap.values()].sort((a, b) => b.supply - a.supply),
         };
@@ -247,6 +260,7 @@ export default function HomePage() {
         title: group.chainName,
         iconText: group.chainName.slice(0, 1).toUpperCase(),
         iconColor: CHAIN_COLORS[chainId] ?? "#94a3b8",
+        hasBridged: group.bridgedSupply > 0,
         shownSupply: group.nativeSupply + group.bridgedSupply,
         breakdown: [...group.breakdownMap.values()].sort((a, b) => b.supply - a.supply),
       }))
@@ -367,9 +381,7 @@ export default function HomePage() {
                       <div className="group-label">
                         <div className="group-name-row">
                           <p className="group-name">{row.title}</p>
-                          {groupMode === "stablecoin" && includeBridged ? (
-                            <span className="mini-pill">Includes bridged</span>
-                          ) : null}
+                          {includeBridged && row.hasBridged ? <span className="mini-pill">Includes bridged</span> : null}
                         </div>
                         {groupMode === "stablecoin" && row.subtitle ? (
                           <p className="group-subname">{row.subtitle}</p>
@@ -392,10 +404,24 @@ export default function HomePage() {
                         row.breakdown.map((entry) => (
                           <div className="breakdown-row" key={`${expansionKey}:${entry.key}`}>
                             <div className="breakdown-left">
-                              <p className="breakdown-title">
-                                {entry.primary}
-                                {entry.contractCount > 1 ? ` • ${entry.contractCount} contracts` : ""}
-                              </p>
+                              <div className="breakdown-title-row">
+                                <p className="breakdown-title">
+                                  {entry.primary}
+                                  {entry.contractCount > 1 ? ` • ${entry.contractCount} contracts` : ""}
+                                </p>
+                                {groupMode === "stablecoin" && entry.explorerUrl ? (
+                                  <a
+                                    className="breakdown-external"
+                                    href={entry.explorerUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label={`Open ${entry.primary} in explorer`}
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    ↗
+                                  </a>
+                                ) : null}
+                              </div>
                             </div>
                             <div className="breakdown-right">
                               {entry.kind === "bridged" ? <span className="pill bridged">bridged</span> : null}
