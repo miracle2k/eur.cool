@@ -8,7 +8,7 @@ export const EUR_STABLECOIN_REGISTRY: StablecoinRegistryEntry[] = [
   {
     id: "euro-coin",
     symbol: "EURC",
-    name: "EURC",
+    name: "Circle EUR",
     contracts: [
       { chainId: "ethereum", address: "0x1abaea1f7c830bd89acc67ec4af516284b1bc33c", kind: "native" },
       { chainId: "base", address: "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42", kind: "native" },
