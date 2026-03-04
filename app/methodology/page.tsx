@@ -52,8 +52,10 @@ export default function MethodologyPage() {
               <code> /api/stablecoins/refresh</code> forces an immediate rebuild.
             </li>
             <li>
-              <strong>History:</strong> each refresh writes a snapshot to
-              <code> data/issuance-history.json</code> and computes 1h/24h/7d/30d changes.
+              <strong>History:</strong> each refresh writes per-contract snapshot data to
+              <code> data/issuance-history.json</code>. 1h/24h/7d/30d changes are computed only from contracts
+              present in both snapshots being compared, so newly added contracts join each interval once enough
+              history exists for that window.
             </li>
           </ol>
           <p style={{ marginTop: "0.8rem", color: "#555d70" }}>

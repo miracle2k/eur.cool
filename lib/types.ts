@@ -54,6 +54,7 @@ export type IssuanceSnapshot = {
   timestamp: string;
   native: number;
   withBridged: number;
+  contractSupplies: Record<string, number>;
 };
 
 export type IssuanceResponse = {

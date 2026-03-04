@@ -1,6 +1,6 @@
 import { EUR_STABLECOIN_REGISTRY } from "@/data/eurStablecoinRegistry";
 import { chainName, isEvmAddress, isEvmChain } from "@/lib/chains";
-import { computeIntervalChanges, appendSnapshot, readHistory } from "@/lib/history";
+import { computeIntervalChanges, appendSnapshot } from "@/lib/history";
 import { fetchEvmTotalSupply } from "@/lib/rpc";
 import { fetchNonEvmTotalSupply } from "@/lib/nonEvm";
 import {
@@ -299,18 +299,29 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     { native: 0, withBridged: 0 },
   );
 
+  const contractSupplies: Record<string, number> = {};
+  for (const token of stablecoins) {
+    for (const contract of token.contracts) {
+      if (contract.supply === null) {
+        continue;
+      }
+
+      contractSupplies[keyFor(token.id, contract.chainId, contract.address)] = contract.supply;
+    }
+  }
+
   const generatedAt = new Date().toISOString();
-  await appendSnapshot({
+  const history = await appendSnapshot({
     timestamp: generatedAt,
     native: totals.native,
     withBridged: totals.withBridged,
+    contractSupplies,
   });
-  const history = await readHistory();
 
   return {
     generatedAt,
     totals,
-    changes: computeIntervalChanges(history, totals.withBridged),
+    changes: computeIntervalChanges(history),
     chains,
     stablecoins,
     sourceStats: {
