@@ -32,6 +32,7 @@ type GroupMode = "stablecoin" | "chain";
 type BreakdownRow = {
   key: string;
   primary: string;
+  secondary?: string;
   kind: "native" | "bridged";
   supply: number;
   contractCount: number;
@@ -106,12 +107,12 @@ export default function HomePage() {
   const [groupMode, setGroupMode] = useState<GroupMode>("stablecoin");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
-  async function loadData(force = false) {
+  async function loadData() {
     setLoading((prev) => (data ? prev : true));
     setError(null);
 
     try {
-      const res = await fetch(`/api/stablecoins${force ? "?force=1" : ""}`, { cache: "no-store" });
+      const res = await fetch("/api/stablecoins", { cache: "no-store" });
       if (!res.ok) {
         throw new Error(`Failed to fetch issuance (${res.status})`);
       }
@@ -131,7 +132,7 @@ export default function HomePage() {
       if (!res.ok) {
         throw new Error(`Refresh failed (${res.status})`);
       }
-      await loadData(true);
+      await loadData();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -242,6 +243,7 @@ export default function HomePage() {
         const existing = chainGroup.breakdownMap.get(breakdownKey) ?? {
           key: breakdownKey,
           primary: token.symbol,
+          secondary: token.name,
           kind: contract.kind,
           supply: 0,
           contractCount: 0,
@@ -441,6 +443,7 @@ export default function HomePage() {
                                   </a>
                                 ) : null}
                               </div>
+                              {entry.secondary ? <p className="breakdown-subtitle">{entry.secondary}</p> : null}
                             </div>
                             <div className="breakdown-right">
                               {entry.kind === "bridged" ? <span className="pill bridged">bridged</span> : null}
