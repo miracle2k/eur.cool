@@ -17,9 +17,9 @@ export type ContractSupply = ContractDefinition & {
   chainName: string;
   supply: number | null;
   decimals: number | null;
-  source: "rpc" | "unavailable";
+  source: "rpc" | "unavailable" | "carried";
   method: string;
-  status: "ok" | "error" | "unsupported";
+  status: "ok" | "error" | "unsupported" | "stale";
   error?: string;
 };
 

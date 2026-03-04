@@ -44,18 +44,20 @@ export default function MethodologyPage() {
               state, Cosmos bank denom supply, Tezos token totals, and IC ledger metrics).
             </li>
             <li>
-              <strong>No fallback attribution:</strong> production totals never use off-chain backfills.
-              When a chain read fails, that row is marked unavailable.
+              <strong>No off-chain fallback attribution:</strong> production totals never invent or estimate issuance
+              from third-party market APIs. If a contract read fails, the latest fresh on-chain value may be carried
+              forward for a limited window; otherwise the row is marked unavailable.
             </li>
             <li>
               <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 5m).
               <code> /api/stablecoins/refresh</code> forces an immediate rebuild.
             </li>
             <li>
-              <strong>History:</strong> each refresh writes per-contract snapshot data to
-              <code> data/issuance-history.json</code>. 1h/24h/7d/30d changes are computed only from contracts
-              present in both snapshots being compared, so newly added contracts join each interval once enough
-              history exists for that window.
+              <strong>History:</strong> each refresh writes per-contract snapshot data. With
+              <code> TURSO_DATABASE_URL</code> set, snapshots and contract rows are persisted in Turso; otherwise they
+              are stored locally in <code> data/issuance-history.json</code>. 1h/24h/7d/30d changes are computed only
+              from contracts present in both snapshots being compared, so newly added contracts join each interval
+              once enough history exists for that window.
             </li>
           </ol>
           <p style={{ marginTop: "0.8rem", color: "#555d70" }}>

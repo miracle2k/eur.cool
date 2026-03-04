@@ -29,6 +29,7 @@ const METHOD_LABELS: Record<string, string> = {
 function humanMethod(method: string, source: string): string {
   const label = METHOD_LABELS[method];
   if (label) return label;
+  if (source === "carried") return "Carried from previous snapshot";
   if (source === "unavailable") return "Unavailable";
   return method;
 }
@@ -69,10 +70,10 @@ export default function SourcesPage() {
       kind: "native" | "bridged";
       supply: number | null;
       address: string;
-      source: "rpc" | "unavailable";
+      source: "rpc" | "unavailable" | "carried";
       method: string;
       explorerUrl: string | null;
-      status: "ok" | "error" | "unsupported";
+      status: "ok" | "error" | "unsupported" | "stale";
       error?: string;
     }> = [];
 
@@ -96,7 +97,12 @@ export default function SourcesPage() {
     }
 
     return list.sort((a, b) => {
-      const sourceRank = (v: string) => (v === "rpc" ? 0 : 1);
+      const sourceRank = (v: string) => {
+        if (v === "rpc") return 0;
+        if (v === "carried") return 1;
+        return 2;
+      };
+
       const rankDiff = sourceRank(a.source) - sourceRank(b.source);
       if (rankDiff !== 0) return rankDiff;
       return (b.supply ?? -1) - (a.supply ?? -1);
@@ -106,9 +112,10 @@ export default function SourcesPage() {
   const stats = useMemo(() => {
     if (!data) return null;
 
-    const counts: Record<"rpc" | "unavailable", number> = {
+    const counts: Record<"rpc" | "unavailable" | "carried", number> = {
       rpc: 0,
       unavailable: 0,
+      carried: 0,
     };
     for (const row of rows) {
       counts[row.source] += 1;
@@ -159,7 +166,7 @@ export default function SourcesPage() {
           <div className="contracts-head">
             <h2>Coverage summary</h2>
             <p>
-              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • on-chain {stats.rpc} • unavailable {stats.unavailable}
+              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • on-chain {stats.rpc} • carried {stats.carried} • unavailable {stats.unavailable}
             </p>
           </div>
         </section>

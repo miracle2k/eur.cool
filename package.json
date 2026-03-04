@@ -12,6 +12,7 @@
     "check:strict-onchain": "node scripts/check-strict-onchain.mjs"
   },
   "dependencies": {
+    "@libsql/client": "^0.15.15",
     "ethers": "^6.15.0",
     "next": "^15.5.2",
     "react": "^19.1.1",
