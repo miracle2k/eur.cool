@@ -35,7 +35,7 @@ npm run check:strict-onchain
 ALCHEMY_API_KEY=your-key
 
 # optional cache/auth
-ISSUANCE_CACHE_TTL_MS=300000
+ISSUANCE_CACHE_TTL_MS=60000
 REFRESH_SECRET=optional-refresh-secret
 
 # optional persistence (recommended)
@@ -53,12 +53,17 @@ curl -X POST http://localhost:3000/api/stablecoins/refresh \
   -H "x-refresh-secret: $REFRESH_SECRET"
 ```
 
+## Scheduling refreshes
+
+Run refreshes out-of-band (for example, Kubernetes CronJob) by calling `POST /api/stablecoins/refresh`.
+`GET /api/stablecoins` is read-only and never triggers refreshes.
+
 ## Persistence
 
 - With `TURSO_DATABASE_URL` set:
   - snapshots, per-contract snapshot rows, refresh runs, and observations are stored in Turso
   - required tables are auto-created on first write
-  - `GET /api/stablecoins` returns the latest persisted snapshot immediately and refreshes in background when stale
+  - `GET /api/stablecoins` serves the latest persisted snapshot and does not trigger refreshes
 - Without `TURSO_DATABASE_URL`:
   - history is stored in `data/issuance-history.json`
 

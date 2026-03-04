@@ -2,73 +2,60 @@ import { buildIssuanceSnapshot } from "@/lib/issuance";
 import { isTursoEnabled, readLatestIssuancePayload } from "@/lib/turso-store";
 import { IssuanceResponse } from "@/lib/types";
 
-const CACHE_TTL_MS = Number(process.env.ISSUANCE_CACHE_TTL_MS ?? 5 * 60 * 1000);
+const CACHE_TTL_MS = Number(process.env.ISSUANCE_CACHE_TTL_MS ?? 60 * 1000);
 
 let cache: { data: IssuanceResponse; fetchedAt: number } | null = null;
-let inFlight: Promise<IssuanceResponse> | null = null;
+let inFlightRefresh: Promise<IssuanceResponse> | null = null;
 
-function launchRefresh(): Promise<IssuanceResponse> {
-  if (inFlight) {
-    return inFlight;
+function writeCache(data: IssuanceResponse) {
+  cache = { data, fetchedAt: Date.now() };
+}
+
+export async function refreshIssuanceData(): Promise<IssuanceResponse> {
+  if (inFlightRefresh) {
+    return inFlightRefresh;
   }
 
-  inFlight = buildIssuanceSnapshot()
+  inFlightRefresh = buildIssuanceSnapshot()
     .then((data) => {
-      cache = { data, fetchedAt: Date.now() };
+      writeCache(data);
       return data;
     })
     .finally(() => {
-      inFlight = null;
+      inFlightRefresh = null;
     });
 
-  return inFlight;
+  return inFlightRefresh;
 }
 
-function isPersistedSnapshotStale(snapshot: IssuanceResponse, now: number): boolean {
-  const ts = new Date(snapshot.generatedAt).getTime();
-  if (Number.isNaN(ts)) {
-    return true;
-  }
-
-  return now - ts >= CACHE_TTL_MS;
-}
-
-export async function getIssuanceData(force = false): Promise<IssuanceResponse> {
+export async function getIssuanceData(): Promise<IssuanceResponse> {
   const now = Date.now();
-
-  if (force) {
-    return launchRefresh();
-  }
 
   if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
     return cache.data;
-  }
-
-  if (inFlight) {
-    return inFlight;
   }
 
   if (isTursoEnabled()) {
     try {
       const persisted = await readLatestIssuancePayload();
       if (persisted) {
-        cache = {
-          data: persisted,
-          fetchedAt: Date.now(),
-        };
-
-        if (isPersistedSnapshotStale(persisted, now)) {
-          void launchRefresh().catch(() => {
-            // stale snapshot is still served; background refresh can retry later
-          });
-        }
-
+        writeCache(persisted);
         return persisted;
       }
-    } catch {
-      // fall through to a live rebuild path
+    } catch (error) {
+      if (cache) {
+        return cache.data;
+      }
+
+      throw error;
     }
+
+    if (cache) {
+      return cache.data;
+    }
+
+    throw new Error("No persisted snapshot available yet. Trigger POST /api/stablecoins/refresh (e.g. via CronJob).");
   }
 
-  return launchRefresh();
+  return refreshIssuanceData();
 }

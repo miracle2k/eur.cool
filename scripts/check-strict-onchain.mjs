@@ -4,27 +4,34 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 
 const port = Number(process.env.STRICT_CHECK_PORT ?? 4310);
-const url = `http://127.0.0.1:${port}/api/stablecoins?force=1`;
+const snapshotUrl = `http://127.0.0.1:${port}/api/stablecoins`;
+const refreshUrl = `http://127.0.0.1:${port}/api/stablecoins/refresh`;
 
 function fail(message) {
   console.error(`❌ ${message}`);
   process.exit(1);
 }
 
-async function waitForSnapshot() {
+async function refreshAndReadSnapshot() {
   for (let attempt = 1; attempt <= 60; attempt += 1) {
     try {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      const refreshRes = await fetch(refreshUrl, { method: "POST", cache: "no-store" });
+      if (!refreshRes.ok) {
+        throw new Error(`refresh HTTP ${refreshRes.status}`);
       }
+
+      const res = await fetch(snapshotUrl, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`snapshot HTTP ${res.status}`);
+      }
+
       return await res.json();
     } catch {
       await delay(1000);
     }
   }
 
-  throw new Error(`Timed out waiting for ${url}`);
+  throw new Error(`Timed out waiting for refresh/snapshot at ${refreshUrl}`);
 }
 
 async function main() {
@@ -37,7 +44,7 @@ async function main() {
   child.stderr.on("data", () => {});
 
   try {
-    const snapshot = await waitForSnapshot();
+    const snapshot = await refreshAndReadSnapshot();
 
     const contracts = snapshot.stablecoins.flatMap((token) => token.contracts);
     const fallbackRows = contracts.filter((contract) => contract.chainId === "other");

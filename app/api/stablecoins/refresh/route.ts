@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getIssuanceData } from "@/lib/server-cache";
+import { refreshIssuanceData } from "@/lib/server-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const data = await getIssuanceData(true);
+    const data = await refreshIssuanceData();
     return NextResponse.json({
       ok: true,
       generatedAt: data.generatedAt,
@@ -44,6 +44,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     usage: "POST /api/stablecoins/refresh",
-    note: "Optionally set REFRESH_SECRET and pass x-refresh-secret header.",
+    note: "Set REFRESH_SECRET and pass x-refresh-secret header in production.",
   });
 }

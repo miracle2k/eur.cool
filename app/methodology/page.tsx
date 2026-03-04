@@ -49,8 +49,8 @@ export default function MethodologyPage() {
               forward for a limited window; otherwise the row is marked unavailable.
             </li>
             <li>
-              <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 5m).
-              <code> /api/stablecoins/refresh</code> forces an immediate rebuild.
+              <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 1m) and
+              is read-only. <code> /api/stablecoins/refresh</code> forces an immediate rebuild.
             </li>
             <li>
               <strong>History:</strong> each refresh writes per-contract snapshot data. With
