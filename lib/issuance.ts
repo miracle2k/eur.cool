@@ -1,6 +1,5 @@
 import { EUR_STABLECOIN_REGISTRY } from "@/data/eurStablecoinRegistry";
 import { chainName, isEvmAddress, isEvmChain } from "@/lib/chains";
-import { fetchMarketDataByIds } from "@/lib/coingecko";
 import { computeIntervalChanges, appendSnapshot, readHistory } from "@/lib/history";
 import { fetchEvmTotalSupply } from "@/lib/rpc";
 import { fetchNonEvmTotalSupply } from "@/lib/nonEvm";
@@ -63,9 +62,6 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
-  const tokenIds = EUR_STABLECOIN_REGISTRY.map((token) => token.id);
-  const marketDataById = await fetchMarketDataByIds(tokenIds);
-
   const rpcJobs: RpcJob[] = [];
   const nonEvmJobs: RpcJob[] = [];
 
@@ -145,7 +141,6 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
   let failedContracts = 0;
 
   const stablecoins: StablecoinIssuance[] = EUR_STABLECOIN_REGISTRY.map((token) => {
-    const marketData = marketDataById.get(token.id);
     const contracts: ContractSupply[] = [];
 
     let nativeSupply = 0;
@@ -235,14 +230,10 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
       }
     }
 
-    const circulatingSupply = marketData?.circulatingSupply ?? null;
-
     return {
       id: token.id,
       symbol: token.symbol,
       name: token.name,
-      marketCapEur: marketData?.marketCapEur ?? null,
-      circulatingSupply,
       contracts,
       nativeSupply,
       bridgedSupply,
@@ -252,11 +243,11 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
 
   const fallbackContracts = stablecoins
     .flatMap((token) => token.contracts)
-    .filter((contract) => contract.source === "coingecko" || contract.chainId === "other");
+    .filter((contract) => contract.chainId === "other");
 
   if (fallbackContracts.length > 0) {
     throw new Error(
-      `Strict on-chain policy violation: found ${fallbackContracts.length} fallback contract rows (coingecko/other).`,
+      `Strict on-chain policy violation: found ${fallbackContracts.length} fallback contract rows (other).`,
     );
   }
 

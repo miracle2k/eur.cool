@@ -7,7 +7,7 @@ EUR stablecoin issuance tracker inspired by usdc.cool.
 - Tracks a curated list of EUR stablecoins and their chain contracts
 - Reads supply from chain-native methods (EVM `totalSupply()`, Solana mint supply, Stellar issued balances, XRPL obligations, Algorand ASA state, Cosmos denom supply, Tezos token totals, IC ledger metrics)
 - Separates **native** vs **bridged** supply
-- Enforces strict on-chain attribution (no CoinGecko fallback remainder in production totals)
+- Enforces strict on-chain attribution (no off-chain fallback remainder in production totals)
 - Exposes:
   - `GET /api/stablecoins` (cached snapshot)
   - `POST /api/stablecoins/refresh` (force refresh)

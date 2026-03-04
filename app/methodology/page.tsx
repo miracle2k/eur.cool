@@ -35,7 +35,7 @@ export default function MethodologyPage() {
         <div style={{ padding: "1rem", lineHeight: 1.75 }}>
           <ol>
             <li>
-              <strong>Token universe:</strong> EUR stablecoins discovered via CoinGecko, with contracts curated in
+              <strong>Token universe:</strong> EUR stablecoins and contracts are curated in
               <code> data/eurStablecoinRegistry.ts</code>.
             </li>
             <li>
@@ -44,8 +44,8 @@ export default function MethodologyPage() {
               state, Cosmos bank denom supply, Tezos token totals, and IC ledger metrics).
             </li>
             <li>
-              <strong>No fallback attribution:</strong> production totals do not use CoinGecko remainder estimates.
-              When a chain read fails, that row is marked unavailable instead of being backfilled.
+              <strong>No fallback attribution:</strong> production totals never use off-chain backfills.
+              When a chain read fails, that row is marked unavailable.
             </li>
             <li>
               <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 5m).

@@ -40,9 +40,7 @@ async function main() {
     const snapshot = await waitForSnapshot();
 
     const contracts = snapshot.stablecoins.flatMap((token) => token.contracts);
-    const fallbackRows = contracts.filter(
-      (contract) => contract.source === "coingecko" || contract.chainId === "other",
-    );
+    const fallbackRows = contracts.filter((contract) => contract.chainId === "other");
 
     if (fallbackRows.length > 0) {
       const preview = fallbackRows

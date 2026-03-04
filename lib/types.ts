@@ -17,7 +17,7 @@ export type ContractSupply = ContractDefinition & {
   chainName: string;
   supply: number | null;
   decimals: number | null;
-  source: "rpc" | "coingecko" | "unavailable";
+  source: "rpc" | "unavailable";
   method: string;
   status: "ok" | "error" | "unsupported";
   error?: string;
@@ -27,8 +27,6 @@ export type StablecoinIssuance = {
   id: string;
   symbol: string;
   name: string;
-  marketCapEur: number | null;
-  circulatingSupply: number | null;
   contracts: ContractSupply[];
   nativeSupply: number;
   bridgedSupply: number;

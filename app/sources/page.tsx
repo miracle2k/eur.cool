@@ -24,7 +24,6 @@ const METHOD_LABELS: Record<string, string> = {
   "cosmos:bank-supply-by-denom": "Cosmos bank supply/by_denom",
   "tezos:tzkt-token-totalSupply": "Tezos token totalSupply (TzKT)",
   "ic:canister-metrics-ledger_total_supply": "IC ledger_total_supply metric",
-  "coingecko:circulating-supply-remainder": "CoinGecko circulating-supply remainder",
 };
 
 function humanMethod(method: string, source: string): string {
@@ -70,7 +69,7 @@ export default function SourcesPage() {
       kind: "native" | "bridged";
       supply: number | null;
       address: string;
-      source: "rpc" | "coingecko" | "unavailable";
+      source: "rpc" | "unavailable";
       method: string;
       explorerUrl: string | null;
       status: "ok" | "error" | "unsupported";
@@ -97,7 +96,7 @@ export default function SourcesPage() {
     }
 
     return list.sort((a, b) => {
-      const sourceRank = (v: string) => (v === "rpc" ? 0 : v === "coingecko" ? 1 : 2);
+      const sourceRank = (v: string) => (v === "rpc" ? 0 : 1);
       const rankDiff = sourceRank(a.source) - sourceRank(b.source);
       if (rankDiff !== 0) return rankDiff;
       return (b.supply ?? -1) - (a.supply ?? -1);
@@ -107,9 +106,8 @@ export default function SourcesPage() {
   const stats = useMemo(() => {
     if (!data) return null;
 
-    const counts: Record<"rpc" | "coingecko" | "unavailable", number> = {
+    const counts: Record<"rpc" | "unavailable", number> = {
       rpc: 0,
-      coingecko: 0,
       unavailable: 0,
     };
     for (const row of rows) {
@@ -161,8 +159,7 @@ export default function SourcesPage() {
           <div className="contracts-head">
             <h2>Coverage summary</h2>
             <p>
-              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • on-chain {stats.rpc} •
-              {" "}fallback {stats.coingecko} • unavailable {stats.unavailable}
+              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • on-chain {stats.rpc} • unavailable {stats.unavailable}
             </p>
           </div>
         </section>
