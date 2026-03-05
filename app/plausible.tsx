@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { init } from "@plausible-analytics/tracker";
 
 declare global {
   interface Window {
@@ -15,11 +14,23 @@ export function PlausibleTracker() {
       return;
     }
 
-    init({
-      domain: "eur.cool",
+    let mounted = true;
+
+    void import("@plausible-analytics/tracker").then(({ init }) => {
+      if (!mounted || window.__plausibleInitialized) {
+        return;
+      }
+
+      init({
+        domain: "eur.cool",
+      });
+
+      window.__plausibleInitialized = true;
     });
 
-    window.__plausibleInitialized = true;
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return null;
