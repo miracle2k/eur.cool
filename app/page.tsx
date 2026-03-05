@@ -101,7 +101,6 @@ function stablecoinColor(seed: string): string {
 export default function HomePage() {
   const [data, setData] = useState<IssuanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeBridged, setIncludeBridged] = useState(true);
   const [groupMode, setGroupMode] = useState<GroupMode>("stablecoin");
@@ -122,21 +121,6 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function triggerRefresh() {
-    setRefreshing(true);
-    try {
-      const res = await fetch("/api/stablecoins/refresh", { method: "POST" });
-      if (!res.ok) {
-        throw new Error(`Refresh failed (${res.status})`);
-      }
-      await loadData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRefreshing(false);
     }
   }
 
@@ -318,9 +302,7 @@ export default function HomePage() {
         <h1 className="brand">
           <span className="brand-icon">€</span>.cool
         </h1>
-        <button type="button" className="refresh top-refresh" onClick={triggerRefresh} disabled={refreshing}>
-          {refreshing ? "Refreshing…" : "Refresh now"}
-        </button>
+        <div />
       </div>
 
       {loading && !data ? <p className="state">Loading issuance feed…</p> : null}
