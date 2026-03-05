@@ -16,7 +16,7 @@ const display = Archivo_Black({
 });
 
 export const metadata: Metadata = {
-  title: "Eurostablecoin overview",
+  title: "eur.cool > The EUR stablecoin ecosystem overview",
   description: "Live issuance tracker for EUR stablecoins",
 };
 
