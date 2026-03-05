@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Archivo_Black, Space_Mono } from "next/font/google";
 import "./globals.css";
-import { PlausibleTracker } from "./plausible";
 
 const mono = Space_Mono({
   subsets: ["latin"],
@@ -28,7 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${mono.variable} ${display.variable}`}>
-        <PlausibleTracker />
+        <Script
+          defer
+          data-domain="eur.cool"
+          src="https://plausible.io/js/script.js"
+          strategy="afterInteractive"
+        />
         {children}
       </body>
     </html>
