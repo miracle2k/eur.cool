@@ -44,9 +44,13 @@ export default function MethodologyPage() {
               state, Cosmos bank denom supply, Tezos token totals, and IC ledger metrics).
             </li>
             <li>
+              <strong>Algorand ASA metric:</strong> Algorand rows report reserve-excluded circulating supply (ASA total
+              minus the configured reserve balance), not the configured ASA total.
+            </li>
+            <li>
               <strong>No off-chain fallback attribution:</strong> production totals never invent or estimate issuance
               from third-party market APIs. If a contract read fails, the latest fresh on-chain value may be carried
-              forward for a limited window; otherwise the row is marked unavailable.
+              forward for a limited window; Algorand reserve-read failures are marked unavailable instead.
             </li>
             <li>
               <strong>Caching:</strong> <code>/api/stablecoins</code> serves cached snapshots (default TTL: 1m) and

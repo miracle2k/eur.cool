@@ -319,29 +319,37 @@ async function fetchAlgorandAsaSupply(assetIdRaw: string): Promise<NonEvmSupplyR
       }
       const totalRaw = BigInt(totalMatch[1]);
 
-      let reserveRaw = 0n;
       const reserve = assetPayload.asset?.params?.reserve;
-      if (reserve) {
-        const accountUrl = `${endpoint}/v2/accounts/${reserve}`;
-        const accountRes = await fetch(accountUrl, {
-          headers: { accept: "application/json" },
-          cache: "no-store",
-        });
-
-        if (accountRes.ok) {
-          const accountText = await accountRes.text();
-          const amountRegex = new RegExp(
-            `\\{[^{}]*"amount"\\s*:\\s*([0-9]+)[^{}]*"asset-id"\\s*:\\s*${assetId}[^{}]*\\}`,
-          );
-          const amountMatch = accountText.match(amountRegex);
-          if (amountMatch) {
-            reserveRaw = BigInt(amountMatch[1]);
-          }
-        }
+      if (!reserve) {
+        throw new Error("Missing Algorand reserve address");
       }
 
-      const issuedRaw = totalRaw > reserveRaw ? totalRaw - reserveRaw : totalRaw;
-      const supply = bigintToDecimal(issuedRaw, decimals);
+      const accountUrl = `${endpoint}/v2/accounts/${reserve}`;
+      const accountRes = await fetch(accountUrl, {
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      });
+
+      if (!accountRes.ok) {
+        throw new Error(`Reserve account lookup HTTP ${accountRes.status}`);
+      }
+
+      const accountText = await accountRes.text();
+      const amountRegex = new RegExp(
+        `\\{[^{}]*"amount"\\s*:\\s*([0-9]+)[^{}]*"asset-id"\\s*:\\s*${assetId}[^{}]*\\}`,
+      );
+      const amountMatch = accountText.match(amountRegex);
+      if (!amountMatch) {
+        throw new Error(`Missing reserve holding for Algorand ASA ${assetId}`);
+      }
+
+      const reserveRaw = BigInt(amountMatch[1]);
+      if (reserveRaw > totalRaw) {
+        throw new Error(`Reserve balance exceeds total for Algorand ASA ${assetId}`);
+      }
+
+      const circulatingRaw = totalRaw - reserveRaw;
+      const supply = bigintToDecimal(circulatingRaw, decimals);
 
       if (!Number.isFinite(supply)) {
         throw new Error("Invalid Algorand supply");
@@ -351,7 +359,7 @@ async function fetchAlgorandAsaSupply(assetIdRaw: string): Promise<NonEvmSupplyR
         ok: true,
         supply,
         decimals,
-        method: "algorand:indexer-total-minus-reserve",
+        method: "algorand:indexer-reserve-excluded-circulating-supply",
         endpoint,
       };
     } catch (error) {

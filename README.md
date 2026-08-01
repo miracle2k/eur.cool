@@ -6,6 +6,7 @@ EUR stablecoin issuance tracker inspired by usdc.cool.
 
 - Tracks a curated list of EUR stablecoins and their chain contracts
 - Reads supply from chain-native methods (EVM `totalSupply()`, Solana mint supply, Stellar issued balances, XRPL obligations, Algorand ASA state, Cosmos denom supply, Tezos token totals, IC ledger metrics)
+- Reports Algorand ASA amounts as reserve-excluded circulating supply (ASA total minus the configured reserve balance), not configured ASA total
 - Separates **native** vs **bridged** supply
 - Enforces strict on-chain attribution (no off-chain market-data remainder)
 - Computes interval changes (1h/24h/7d/30d) from overlap-only per-contract history

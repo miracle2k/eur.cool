@@ -459,7 +459,12 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
             error: nonEvm?.error ?? "Non-EVM lookup failed",
           });
 
-          if (previous && canCarryForward(previous, refreshStartedAtMs)) {
+          // An Algorand reserve read is a prerequisite for its circulating-supply metric.
+          if (
+            contract.chainId !== "algorand" &&
+            previous &&
+            canCarryForward(previous, refreshStartedAtMs)
+          ) {
             carriedContracts += 1;
 
             if (contract.kind === "bridged") {
