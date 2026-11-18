@@ -90,6 +90,7 @@ function solanaRpcUrls(): string[] {
   return unique([
     ...envList("SOLANA_RPC_URLS"),
     ...(process.env.SOLANA_RPC_URL ? [process.env.SOLANA_RPC_URL] : []),
+    "https://api.mainnet-beta.solana.com",
     "https://solana-rpc.publicnode.com",
   ]);
 }
@@ -128,6 +129,7 @@ async function fetchSolanaMintSupply(mintAddress: string): Promise<NonEvmSupplyR
           params: [mintAddress],
         }),
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (!res.ok) {
@@ -592,25 +594,47 @@ async function fetchXrplIssuedSupply(address: string, symbol: string): Promise<N
           params: [{ account: issuer, ledger_index: "validated" }],
         }),
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
 
+      type GatewayBalances = {
+        account?: string;
+        status?: string;
+        error?: string;
+        ledger_hash?: string;
+        ledger_index?: number;
+        validated?: boolean;
+        obligations?: Record<string, string>;
+      };
       const payload = (await res.json()) as {
-        result?: {
-          obligations?: Record<string, string>;
-          result?: {
-            obligations?: Record<string, string>;
-          };
-        };
+        result?: GatewayBalances & { result?: GatewayBalances };
       };
 
-      const obligations = payload.result?.obligations ?? payload.result?.result?.obligations ?? {};
+      const result = payload.result?.result ?? payload.result;
+      if (
+        !result ||
+        (result.status ?? payload.result?.status) !== "success" ||
+        result.error ||
+        result.account !== issuer ||
+        result.validated === false ||
+        !Number.isInteger(result.ledger_index) ||
+        !/^[A-Fa-f0-9]{64}$/.test(result.ledger_hash ?? "") ||
+        (result.obligations !== undefined &&
+          (!result.obligations || typeof result.obligations !== "object" || Array.isArray(result.obligations)))
+      ) {
+        throw new Error(result?.error ?? "Invalid XRPL gateway_balances response");
+      }
+
+      const obligations = result.obligations ?? {};
       const entries = Object.entries(obligations);
       if (!entries.length) {
-        throw new Error("No XRPL obligations found for issuer");
+        // XRPL omits obligations when no issued balances exist. This is a
+        // successful on-chain zero, not a failed read or an estimated value.
+        return { ok: true, supply: 0, decimals: 0, method: "xrpl:gateway_balances", endpoint };
       }
 
       const match = entries.find(([key]) => {

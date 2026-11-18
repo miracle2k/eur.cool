@@ -30,10 +30,31 @@ Validate strict no-fallback policy:
 npm run check:strict-onchain
 ```
 
+Check database query bounds, interval calculations, and retention locally without network access:
+
+```bash
+npm run check:turso-queries
+```
+
+Check RPC fallback and zero-issuance handling with isolated response fixtures:
+
+```bash
+npm run check:non-evm
+```
+
+Validate the registered Solana mints against a live RPC endpoint:
+
+```bash
+npm run check:solana
+```
+
 ## Environment
 
 ```bash
 ALCHEMY_API_KEY=your-key
+
+# optional dedicated Solana RPC endpoints (comma-separated, tried first)
+SOLANA_RPC_URLS=
 
 # optional cache/auth
 ISSUANCE_CACHE_TTL_MS=60000
@@ -67,6 +88,14 @@ Run refreshes out-of-band (for example, Kubernetes CronJob) by calling `POST /ap
   - `GET /api/stablecoins` serves the latest persisted snapshot and does not trigger refreshes
 - Without `TURSO_DATABASE_URL`:
   - history is stored in `data/issuance-history.json`
+
+Interval calculations read at most four historical snapshots and their contract supplies.
+Retention uses timestamp indexes. Monitor database usage and snapshot age: cached data can
+remain visible after the database provider blocks reads, but new refreshes cannot complete
+until database access is restored.
+
+Set `SOLANA_RPC_URLS` or `SOLANA_RPC_URL` to use a dedicated Solana provider. The shared
+Solana mainnet endpoint is a rate-limited fallback, without an uptime guarantee.
 
 ## Data files
 

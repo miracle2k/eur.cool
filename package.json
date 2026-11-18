@@ -9,7 +9,9 @@
     "lint": "next lint",
     "discover:eur": "node scripts/discover-eur-stables.mjs",
     "check:solana": "node scripts/verify-solana-supply.mjs",
-    "check:strict-onchain": "node scripts/check-strict-onchain.mjs"
+    "check:strict-onchain": "node scripts/check-strict-onchain.mjs",
+    "check:turso-queries": "node scripts/check-turso-queries.mjs",
+    "check:non-evm": "node scripts/check-non-evm.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",

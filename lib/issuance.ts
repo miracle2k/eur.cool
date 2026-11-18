@@ -12,7 +12,7 @@ import {
   isTursoEnabled,
   LatestContractValue,
   ObservationRow,
-  readHistoryFromTurso,
+  readIntervalBaselinesFromTurso,
   readLatestSnapshotContractValues,
   SnapshotContractRow,
 } from "@/lib/turso-store";
@@ -589,7 +589,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     let history: IssuanceSnapshot[] = [];
 
     if (useTurso) {
-      history = await readHistoryFromTurso();
+      history = await readIntervalBaselinesFromTurso(generatedAt);
     } else {
       history = await appendSnapshot(currentSnapshot);
     }

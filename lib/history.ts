@@ -5,7 +5,7 @@ import { IntervalChange, IssuanceSnapshot } from "@/lib/types";
 const HISTORY_FILE = path.join(process.cwd(), "data", "issuance-history.json");
 const RETAIN_MS = 120 * 24 * 60 * 60 * 1000;
 
-const INTERVALS: Array<{ interval: IntervalChange["interval"]; ms: number }> = [
+export const ISSUANCE_INTERVALS: Array<{ interval: IntervalChange["interval"]; ms: number }> = [
   { interval: "month", ms: 30 * 24 * 60 * 60 * 1000 },
   { interval: "week", ms: 7 * 24 * 60 * 60 * 1000 },
   { interval: "day", ms: 24 * 60 * 60 * 1000 },
@@ -73,7 +73,7 @@ function parseSnapshot(value: unknown): IssuanceSnapshot | null {
 }
 
 function emptyIntervalChanges(): IntervalChange[] {
-  return INTERVALS.map(({ interval }) => ({
+  return ISSUANCE_INTERVALS.map(({ interval }) => ({
     interval,
     absChange: null,
     pctChange: null,
@@ -169,7 +169,7 @@ export function computeIntervalChanges(history: IssuanceSnapshot[]): IntervalCha
     return emptyIntervalChanges();
   }
 
-  return INTERVALS.map(({ interval, ms }) => {
+  return ISSUANCE_INTERVALS.map(({ interval, ms }) => {
     const previousSnapshot = findSnapshotBefore(history, currentTs - ms);
 
     if (!previousSnapshot) {
