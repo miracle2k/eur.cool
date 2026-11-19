@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const fixturesPath = path.join(process.cwd(), "data", "solana-mint-fixtures.json");
-const defaultRpc = "https://solana-rpc.publicnode.com";
+const defaultRpc = "https://api.mainnet-beta.solana.com";
 const rpcUrl = process.env.SOLANA_RPC_URL || defaultRpc;
 
 function fail(message) {
@@ -28,6 +28,7 @@ async function main() {
         method: "getTokenSupply",
         params: [fixture.mint],
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {

@@ -1,6 +1,7 @@
 import { buildIssuanceSnapshot } from "@/lib/issuance";
 import { isTursoEnabled, readLatestIssuancePayload } from "@/lib/turso-store";
 import { IssuanceResponse } from "@/lib/types";
+import { applyRetirementPolicy } from "@/lib/retirement";
 
 const CACHE_TTL_MS = Number(process.env.ISSUANCE_CACHE_TTL_MS ?? 60 * 1000);
 
@@ -8,7 +9,8 @@ let cache: { data: IssuanceResponse; fetchedAt: number } | null = null;
 let inFlightRefresh: Promise<IssuanceResponse> | null = null;
 
 function writeCache(data: IssuanceResponse) {
-  cache = { data, fetchedAt: Date.now() };
+  cache = { data: applyRetirementPolicy(data), fetchedAt: Date.now() };
+  return cache.data;
 }
 
 export async function refreshIssuanceData(): Promise<IssuanceResponse> {
@@ -18,8 +20,7 @@ export async function refreshIssuanceData(): Promise<IssuanceResponse> {
 
   inFlightRefresh = buildIssuanceSnapshot()
     .then((data) => {
-      writeCache(data);
-      return data;
+      return writeCache(data);
     })
     .finally(() => {
       inFlightRefresh = null;
@@ -39,8 +40,7 @@ export async function getIssuanceData(): Promise<IssuanceResponse> {
     try {
       const persisted = await readLatestIssuancePayload();
       if (persisted) {
-        writeCache(persisted);
-        return persisted;
+        return writeCache(persisted);
       }
     } catch (error) {
       if (cache) {

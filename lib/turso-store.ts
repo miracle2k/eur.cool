@@ -1,11 +1,12 @@
 import { createClient, type Client, type InStatement, type Transaction } from "@libsql/client";
+import { ISSUANCE_INTERVALS } from "@/lib/history";
 import { IssuanceResponse, IssuanceSnapshot } from "@/lib/types";
 
 type RunKind = "full" | "partial" | "manual";
 type ObservationStatus = "ok" | "error" | "unsupported";
 type ObservationSource = "rpc" | "unavailable";
 
-type SnapshotValueState = "fresh" | "carried" | "missing";
+type SnapshotValueState = "fresh" | "carried" | "missing" | "archived";
 
 export type SnapshotContractRow = {
   contractKey: string;
@@ -18,9 +19,9 @@ export type SnapshotContractRow = {
   kind: "native" | "bridged";
   supply: number | null;
   decimals: number | null;
-  source: "rpc" | "unavailable" | "carried";
+  source: "rpc" | "unavailable" | "carried" | "archived";
   method: string;
-  status: "ok" | "error" | "unsupported" | "stale";
+  status: "ok" | "error" | "unsupported" | "stale" | "retired";
   error?: string;
   valueState: SnapshotValueState;
   valueObservedAt: string | null;
@@ -171,6 +172,10 @@ async function ensureSchema(): Promise<void> {
           ON contract_observations (contract_key, observed_at DESC);
         CREATE INDEX IF NOT EXISTS idx_contract_observations_run
           ON contract_observations (refresh_run_id);
+        CREATE INDEX IF NOT EXISTS idx_contract_observations_observed_at
+          ON contract_observations (observed_at);
+        CREATE INDEX IF NOT EXISTS idx_refresh_runs_started_at
+          ON refresh_runs (started_at);
 
         CREATE TABLE IF NOT EXISTS issuance_snapshots (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -424,7 +429,7 @@ export async function readLatestSnapshotContractValues(): Promise<Map<string, La
   return map;
 }
 
-export async function readHistoryFromTurso(): Promise<IssuanceSnapshot[]> {
+export async function readIntervalBaselinesFromTurso(capturedAt: string): Promise<IssuanceSnapshot[]> {
   if (!isTursoEnabled()) {
     return [];
   }
@@ -432,24 +437,33 @@ export async function readHistoryFromTurso(): Promise<IssuanceSnapshot[]> {
   await ensureSchema();
   const db = getClient();
 
-  const snapshotsResult = await db.execute({
-    sql: `
-      SELECT id, captured_at, native_total, with_bridged_total
-      FROM issuance_snapshots
-      WHERE julianday(captured_at) >= julianday('now', ?)
-      ORDER BY captured_at ASC
-    `,
-    args: [`-${SNAPSHOT_RETAIN_DAYS} day`],
-  });
+  const capturedAtMs = new Date(capturedAt).getTime();
+  const oldestTimestamp = new Date(capturedAtMs - SNAPSHOT_RETAIN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // Each interval needs only the closest snapshot at or before its cutoff.
+  // Keep timestamp comparisons indexable; loading all retained contracts on
+  // every refresh consumes the database's row-read allowance unnecessarily.
+  const snapshotsResults = await db.batch(
+    ISSUANCE_INTERVALS.map(({ ms }) => ({
+      sql: `
+        SELECT id, captured_at, native_total, with_bridged_total
+        FROM issuance_snapshots
+        WHERE captured_at >= ? AND captured_at <= ?
+        ORDER BY captured_at DESC
+        LIMIT 1
+      `,
+      args: [oldestTimestamp, new Date(capturedAtMs - ms).toISOString()],
+    })),
+    "read",
+  );
+  const snapshotRows = snapshotsResults.flatMap((result) => result.rows);
 
-  if (snapshotsResult.rows.length === 0) {
+  if (snapshotRows.length === 0) {
     return [];
   }
 
-  const snapshotIds: number[] = [];
   const byId = new Map<number, IssuanceSnapshot>();
 
-  for (const row of snapshotsResult.rows) {
+  for (const row of snapshotRows) {
     const id = parseNumber(row.id);
     const native = parseNumber(row.native_total);
     const withBridged = parseNumber(row.with_bridged_total);
@@ -459,7 +473,6 @@ export async function readHistoryFromTurso(): Promise<IssuanceSnapshot[]> {
       continue;
     }
 
-    snapshotIds.push(id);
     byId.set(id, {
       timestamp: asIsoString(capturedAt),
       native,
@@ -468,6 +481,7 @@ export async function readHistoryFromTurso(): Promise<IssuanceSnapshot[]> {
     });
   }
 
+  const snapshotIds = [...byId.keys()];
   if (snapshotIds.length === 0) {
     return [];
   }
@@ -610,21 +624,21 @@ export async function appendSnapshotToTurso(params: {
       {
         sql: `
           DELETE FROM issuance_snapshots
-          WHERE julianday(captured_at) < julianday('now', ?)
+          WHERE captured_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)
         `,
         args: [`-${SNAPSHOT_RETAIN_DAYS} day`],
       },
       {
         sql: `
           DELETE FROM contract_observations
-          WHERE julianday(observed_at) < julianday('now', ?)
+          WHERE observed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)
         `,
         args: [`-${OPERATIONAL_RETAIN_DAYS} day`],
       },
       {
         sql: `
           DELETE FROM refresh_runs
-          WHERE julianday(started_at) < julianday('now', ?)
+          WHERE started_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)
         `,
         args: [`-${OPERATIONAL_RETAIN_DAYS} day`],
       },

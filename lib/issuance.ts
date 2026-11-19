@@ -1,6 +1,7 @@
 import { EUR_STABLECOIN_REGISTRY } from "@/data/eurStablecoinRegistry";
 import { chainName, isEvmAddress, isEvmChain } from "@/lib/chains";
-import { computeIntervalChanges, appendSnapshot } from "@/lib/history";
+import { computeIntervalChanges, appendSnapshot, readHistory } from "@/lib/history";
+import { aggregateChains, retirementFor, retiredContractKeys } from "@/lib/retirement";
 import { fetchEvmTotalSupply } from "@/lib/rpc";
 import { fetchNonEvmTotalSupply } from "@/lib/nonEvm";
 import {
@@ -12,12 +13,11 @@ import {
   isTursoEnabled,
   LatestContractValue,
   ObservationRow,
-  readHistoryFromTurso,
+  readIntervalBaselinesFromTurso,
   readLatestSnapshotContractValues,
   SnapshotContractRow,
 } from "@/lib/turso-store";
 import {
-  ChainAggregate,
   ContractSupply,
   IssuanceResponse,
   IssuanceSnapshot,
@@ -86,6 +86,8 @@ function snapshotValueState(contract: ContractSupply): SnapshotContractRow["valu
     return "carried";
   }
 
+  if (contract.source === "archived") return "archived";
+
   return "fresh";
 }
 
@@ -109,22 +111,12 @@ function canCarryForward(previous: LatestContractValue, nowMs: number): boolean 
 
 function toSnapshotContractRows(
   stablecoins: StablecoinIssuance[],
-  generatedAt: string,
-  previousValues: Map<string, LatestContractValue>,
 ): SnapshotContractRow[] {
   const rows: SnapshotContractRow[] = [];
 
   for (const token of stablecoins) {
     for (const contract of token.contracts) {
       const contractKey = keyFor(token.id, contract.chainId, contract.address);
-      const previous = previousValues.get(contractKey);
-
-      const valueObservedAt =
-        contract.supply === null
-          ? null
-          : contract.source === "carried"
-            ? (previous?.valueObservedAt ?? null)
-            : generatedAt;
 
       rows.push({
         contractKey,
@@ -142,7 +134,7 @@ function toSnapshotContractRows(
         status: contract.status,
         error: contract.error,
         valueState: snapshotValueState(contract),
-        valueObservedAt,
+        valueObservedAt: contract.observedAt ?? null,
       });
     }
   }
@@ -156,15 +148,30 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
 
   try {
     const refreshStartedAtMs = Date.now();
+    const asOf = new Date(refreshStartedAtMs).toISOString();
+    const excludedContracts = retiredContractKeys(asOf);
     const previousValues: Map<string, LatestContractValue> = useTurso
       ? await readLatestSnapshotContractValues()
       : new Map<string, LatestContractValue>();
+
+    if (!useTurso) {
+      const latest = (await readHistory()).at(-1);
+      for (const [key, supply] of Object.entries(latest?.contractSupplies ?? {})) {
+        if (!excludedContracts.has(key)) continue;
+        previousValues.set(key, {
+          supply, decimals: null, method: "historical:on-chain",
+          // Older local history does not record the observation time separately.
+          valueObservedAt: latest?.contractObservedAt?.[key] ?? null,
+        });
+      }
+    }
 
     const rpcJobs: RpcJob[] = [];
     const nonEvmJobs: RpcJob[] = [];
 
     for (const token of EUR_STABLECOIN_REGISTRY) {
       for (const contract of token.contracts) {
+        if (retirementFor(token.id, asOf) && !contract.observeAfterRetirement) continue;
         const job = { token, chainId: contract.chainId, address: contract.address };
         if (isEvmAddress(contract.address) && isEvmChain(contract.chainId)) {
           rpcJobs.push(job);
@@ -243,7 +250,8 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     let carriedContracts = 0;
     let missingContracts = 0;
 
-    const stablecoins: StablecoinIssuance[] = EUR_STABLECOIN_REGISTRY.map((token) => {
+    const allStablecoins: StablecoinIssuance[] = EUR_STABLECOIN_REGISTRY.map((token) => {
+      const retirement = retirementFor(token.id, asOf);
       const contracts: ContractSupply[] = [];
 
       let nativeSupply = 0;
@@ -259,6 +267,36 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
           address: contract.address,
           kind: contract.kind,
         };
+
+        if (retirement) {
+          const read = isEvmChain(contract.chainId) ? rpcByKey.get(contractKey) : nonEvmByKey.get(contractKey);
+          const fresh = read?.status === "ok" && read.supply !== null && read.decimals !== null;
+          const method = fresh
+            ? "method" in read ? read.method : "evm:erc20-totalSupply"
+            : previous?.method ?? (isEvmChain(contract.chainId) ? "evm:erc20-totalSupply" : "historical:on-chain");
+          const supply = fresh ? read.supply : previous?.supply ?? null;
+          contracts.push({
+            ...base, supply,
+            decimals: fresh ? read.decimals : previous?.decimals ?? null,
+            source: fresh ? "rpc" : supply === null ? "unavailable" : "archived",
+            method, status: "retired",
+            ...(fresh ? {} : { observedAt: previous?.valueObservedAt ?? null }),
+          });
+          if (fresh) {
+            freshContracts += 1;
+            observations.push({
+              contractKey, tokenId: token.id, tokenSymbol: token.symbol, tokenName: token.name,
+              ...base, status: "ok", source: "rpc", method, supply, decimals: read.decimals,
+            });
+          } else if (supply !== null) carriedContracts += 1;
+          else missingContracts += 1;
+          if (supply !== null) {
+            if (contract.kind === "bridged") bridgedSupply += supply;
+            else nativeSupply += supply;
+          }
+          // Retired balances are archival evidence and never active read failures.
+          continue;
+        }
 
         if (isEvmAddress(contract.address) && isEvmChain(contract.chainId)) {
           const rpc = rpcByKey.get(contractKey);
@@ -506,10 +544,13 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
         nativeSupply,
         bridgedSupply,
         totalSupply: nativeSupply + bridgedSupply,
+        ...(retirement ? { retirement } : {}),
       };
     }).sort((a, b) => b.totalSupply - a.totalSupply);
 
-    const fallbackContracts = stablecoins
+    const stablecoins = allStablecoins.filter((token) => !token.retirement);
+    const retiredStablecoins = allStablecoins.filter((token) => token.retirement);
+    const fallbackContracts = allStablecoins
       .flatMap((token) => token.contracts)
       .filter((contract) => contract.chainId === "other");
 
@@ -519,44 +560,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
       );
     }
 
-    const chainMap = new Map<string, ChainAggregate>();
-    const chainTokenSets = new Map<string, Set<string>>();
-
-    for (const token of stablecoins) {
-      for (const contract of token.contracts) {
-        if (contract.supply === null) {
-          continue;
-        }
-
-        const existing = chainMap.get(contract.chainId) ?? {
-          chainId: contract.chainId,
-          chainName: contract.chainName,
-          nativeSupply: 0,
-          bridgedSupply: 0,
-          totalSupply: 0,
-          tokenCount: 0,
-        };
-
-        if (contract.kind === "bridged") {
-          existing.bridgedSupply += contract.supply;
-        } else {
-          existing.nativeSupply += contract.supply;
-        }
-        existing.totalSupply += contract.supply;
-        chainMap.set(contract.chainId, existing);
-
-        const set = chainTokenSets.get(contract.chainId) ?? new Set<string>();
-        set.add(token.id);
-        chainTokenSets.set(contract.chainId, set);
-      }
-    }
-
-    const chains = [...chainMap.values()]
-      .map((chain) => ({
-        ...chain,
-        tokenCount: chainTokenSets.get(chain.chainId)?.size ?? 0,
-      }))
-      .sort((a, b) => b.totalSupply - a.totalSupply);
+    const chains = aggregateChains(stablecoins);
 
     const totals = stablecoins.reduce(
       (acc, token) => {
@@ -568,34 +572,40 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
     );
 
     const contractSupplies: Record<string, number> = {};
-    for (const token of stablecoins) {
+    const contractObservedAt: Record<string, string | null> = {};
+    const generatedAt = new Date().toISOString();
+    for (const token of allStablecoins) {
       for (const contract of token.contracts) {
+        const key = keyFor(token.id, contract.chainId, contract.address);
+        contract.observedAt = contract.source === "rpc" ? generatedAt
+          : contract.observedAt ?? previousValues.get(key)?.valueObservedAt ?? null;
         if (contract.supply === null) {
           continue;
         }
 
-        contractSupplies[keyFor(token.id, contract.chainId, contract.address)] = contract.supply;
+        contractSupplies[key] = contract.supply;
+        contractObservedAt[key] = contract.observedAt;
       }
     }
 
-    const generatedAt = new Date().toISOString();
     const currentSnapshot: IssuanceSnapshot = {
       timestamp: generatedAt,
       native: totals.native,
       withBridged: totals.withBridged,
       contractSupplies,
+      contractObservedAt,
     };
 
     let history: IssuanceSnapshot[] = [];
 
     if (useTurso) {
-      history = await readHistoryFromTurso();
+      history = await readIntervalBaselinesFromTurso(generatedAt);
     } else {
       history = await appendSnapshot(currentSnapshot);
     }
 
     const historyForChanges = useTurso ? [...history, currentSnapshot] : history;
-    const changes = computeIntervalChanges(historyForChanges);
+    const changes = computeIntervalChanges(historyForChanges, excludedContracts);
 
     const response: IssuanceResponse = {
       generatedAt,
@@ -603,9 +613,12 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
       changes,
       chains,
       stablecoins,
+      retiredStablecoins,
       sourceStats: {
-        trackedTokens: EUR_STABLECOIN_REGISTRY.length,
-        trackedContracts: EUR_STABLECOIN_REGISTRY.reduce((sum, token) => sum + token.contracts.length, 0),
+        trackedTokens: stablecoins.length,
+        trackedContracts: stablecoins.reduce((sum, token) => sum + token.contracts.length, 0),
+        retiredTokens: retiredStablecoins.length,
+        retiredContracts: retiredStablecoins.reduce((sum, token) => sum + token.contracts.length, 0),
         rpcSuccessContracts,
         unsupportedContracts,
         failedContracts,
@@ -624,7 +637,7 @@ export async function buildIssuanceSnapshot(): Promise<IssuanceResponse> {
         carriedContracts,
         missingContracts,
         payload: response,
-        contracts: toSnapshotContractRows(stablecoins, generatedAt, previousValues),
+        contracts: toSnapshotContractRows(allStablecoins),
       });
 
       if (refreshRunId !== null) {

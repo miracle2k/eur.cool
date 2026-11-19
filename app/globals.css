@@ -155,6 +155,13 @@ a {
   font-size: 0.96rem;
 }
 
+.summary-note {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
 .summary-grid {
   border-top: 1px solid var(--border);
   display: grid;
@@ -559,6 +566,54 @@ a {
 
 .warn {
   color: #7d8597;
+}
+
+.retired-asset {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.retired-asset:last-child { border-bottom: 0; }
+
+.retired-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.retired-name h3 { margin: 0; font-size: 1rem; }
+
+.retired-details {
+  margin: 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.retired-details a { text-decoration: underline; text-underline-offset: 0.15em; }
+
+.retired-balances { margin-top: 0.9rem; }
+
+.retired-balance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.retired-balance-meta { min-width: 0; font-size: 0.85rem; }
+.retired-balance-meta small { display: block; color: var(--muted); margin-top: 0.3rem; line-height: 1.6; }
+.retired-balance-meta code { display: block; overflow-wrap: anywhere; color: var(--muted); margin-top: 0.4rem; font-size: 0.72rem; }
+.retired-amount { text-align: right; font-size: 0.85rem; font-weight: 700; overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .group-row-main { flex-wrap: wrap; gap: 0.65rem; }
+  .group-right { margin-left: auto; }
+  .retired-balance { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .retired-amount { text-align: left; }
 }
 
 @media (max-width: 860px) {

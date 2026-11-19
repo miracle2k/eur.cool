@@ -5,7 +5,7 @@ import { IntervalChange, IssuanceSnapshot } from "@/lib/types";
 const HISTORY_FILE = path.join(process.cwd(), "data", "issuance-history.json");
 const RETAIN_MS = 120 * 24 * 60 * 60 * 1000;
 
-const INTERVALS: Array<{ interval: IntervalChange["interval"]; ms: number }> = [
+export const ISSUANCE_INTERVALS: Array<{ interval: IntervalChange["interval"]; ms: number }> = [
   { interval: "month", ms: 30 * 24 * 60 * 60 * 1000 },
   { interval: "week", ms: 7 * 24 * 60 * 60 * 1000 },
   { interval: "day", ms: 24 * 60 * 60 * 1000 },
@@ -69,11 +69,15 @@ function parseSnapshot(value: unknown): IssuanceSnapshot | null {
     native,
     withBridged,
     contractSupplies,
+    ...(isObjectRecord(value.contractObservedAt) ? {
+      contractObservedAt: Object.fromEntries(Object.entries(value.contractObservedAt)
+        .filter(([, timestamp]) => timestamp === null || (typeof timestamp === "string" && Number.isFinite(Date.parse(timestamp))))) as Record<string, string | null>,
+    } : {}),
   };
 }
 
 function emptyIntervalChanges(): IntervalChange[] {
-  return INTERVALS.map(({ interval }) => ({
+  return ISSUANCE_INTERVALS.map(({ interval }) => ({
     interval,
     absChange: null,
     pctChange: null,
@@ -131,6 +135,7 @@ function findSnapshotBefore(history: IssuanceSnapshot[], targetTs: number): Issu
 function sumComparableSupplies(
   current: Record<string, number>,
   previous: Record<string, number>,
+  excludedContracts: ReadonlySet<string>,
 ): {
   currentTotal: number;
   previousTotal: number;
@@ -141,6 +146,7 @@ function sumComparableSupplies(
   let comparableContracts = 0;
 
   for (const [key, previousValue] of Object.entries(previous)) {
+    if (excludedContracts.has(key)) continue;
     const currentValue = current[key];
     if (typeof currentValue !== "number" || !Number.isFinite(currentValue)) {
       continue;
@@ -158,7 +164,10 @@ function sumComparableSupplies(
   };
 }
 
-export function computeIntervalChanges(history: IssuanceSnapshot[]): IntervalChange[] {
+export function computeIntervalChanges(
+  history: IssuanceSnapshot[],
+  excludedContracts: ReadonlySet<string> = new Set(),
+): IntervalChange[] {
   const current = history[history.length - 1];
   if (!current) {
     return emptyIntervalChanges();
@@ -169,7 +178,7 @@ export function computeIntervalChanges(history: IssuanceSnapshot[]): IntervalCha
     return emptyIntervalChanges();
   }
 
-  return INTERVALS.map(({ interval, ms }) => {
+  return ISSUANCE_INTERVALS.map(({ interval, ms }) => {
     const previousSnapshot = findSnapshotBefore(history, currentTs - ms);
 
     if (!previousSnapshot) {
@@ -183,6 +192,7 @@ export function computeIntervalChanges(history: IssuanceSnapshot[]): IntervalCha
     const { currentTotal, previousTotal, comparableContracts } = sumComparableSupplies(
       current.contractSupplies,
       previousSnapshot.contractSupplies,
+      excludedContracts,
     );
 
     if (comparableContracts === 0) {
