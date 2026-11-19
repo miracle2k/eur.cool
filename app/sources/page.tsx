@@ -134,7 +134,7 @@ export default function SourcesPage() {
   }, [data, rows]);
 
   return (
-    <main className="page">
+    <main className="page sources-page">
       <div className="header-line">
         <div />
         <nav className="top-nav">
