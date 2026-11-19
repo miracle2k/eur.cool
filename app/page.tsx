@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { IssuanceResponse, Interval } from "@/lib/types";
 import { assetExplorerUrl } from "@/lib/explorers";
+import RetiredAssets from "@/app/retired-assets";
 
 const INTERVAL_LABELS: Record<Interval, string> = {
   month: "Past month",
@@ -313,17 +314,18 @@ export default function HomePage() {
           <section className="summary-card">
             <div className="summary-main">
               <p className="summary-big">{formatLarge(totalIssued)}</p>
-              <p className="summary-label">ISSUED</p>
+              <p className="summary-label">ACTIVE SUPPLY</p>
               <p className="summary-time">as of {formatTimestamp(data.generatedAt)}</p>
+              {data.changesUnavailableReason ? <p className="summary-note">{data.changesUnavailableReason}</p> : null}
             </div>
 
             <div className="summary-grid">
               {data.changes.map((change) => {
-                const positive = (change.pctChange ?? 0) >= 0;
+                const changeClass = change.pctChange === null ? "" : change.pctChange >= 0 ? "up" : "down";
                 return (
                   <article key={change.interval} className="summary-stat">
                     <p className="summary-stat-label">{INTERVAL_LABELS[change.interval]}</p>
-                    <p className={`summary-stat-pct ${positive ? "up" : "down"}`}>
+                    <p className={`summary-stat-pct ${changeClass}`}>
                       {formatPct(change.pctChange)}
                     </p>
                     <p className="summary-stat-abs">{formatCompact(change.absChange)}</p>
@@ -440,6 +442,8 @@ export default function HomePage() {
               );
             })}
           </section>
+
+          <RetiredAssets assets={data.retiredStablecoins} />
 
           <footer className="inspired-footer">
             Inspired by the excellent <a href="https://usdc.cool/" target="_blank" rel="noreferrer">usdc.cool</a>{" "}

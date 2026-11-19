@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { IssuanceResponse } from "@/lib/types";
+import { ContractSupply, IssuanceResponse } from "@/lib/types";
 import { assetExplorerUrl } from "@/lib/explorers";
+import RetiredAssets from "@/app/retired-assets";
 
 function formatCompact(value: number | null): string {
   if (value === null) return "—";
@@ -71,10 +72,10 @@ export default function SourcesPage() {
       kind: "native" | "bridged";
       supply: number | null;
       address: string;
-      source: "rpc" | "unavailable" | "carried";
+      source: ContractSupply["source"];
       method: string;
       explorerUrl: string | null;
-      status: "ok" | "error" | "unsupported" | "stale";
+      status: ContractSupply["status"];
       error?: string;
     }> = [];
 
@@ -113,10 +114,11 @@ export default function SourcesPage() {
   const stats = useMemo(() => {
     if (!data) return null;
 
-    const counts: Record<"rpc" | "unavailable" | "carried", number> = {
+    const counts: Record<ContractSupply["source"], number> = {
       rpc: 0,
       unavailable: 0,
       carried: 0,
+      archived: 0,
     };
     for (const row of rows) {
       counts[row.source] += 1;
@@ -167,7 +169,7 @@ export default function SourcesPage() {
           <div className="contracts-head">
             <h2>Coverage summary</h2>
             <p>
-              {stats.trackedTokens} tokens • {stats.trackedContracts} contracts • on-chain {stats.rpc} • carried {stats.carried} • unavailable {stats.unavailable}
+              {stats.trackedTokens} active tokens • {stats.trackedContracts} active contracts • on-chain {stats.rpc} • carried {stats.carried} • unavailable {stats.unavailable}
             </p>
           </div>
         </section>
@@ -176,7 +178,7 @@ export default function SourcesPage() {
       {data ? (
         <section className="contracts-card">
           <div className="contracts-head">
-            <h2>Contract source table</h2>
+            <h2>Active contract sources</h2>
             <p>Rows sorted by source and then issued amount.</p>
           </div>
 
@@ -224,6 +226,8 @@ export default function SourcesPage() {
           </div>
         </section>
       ) : null}
+
+      <RetiredAssets assets={data?.retiredStablecoins} showContracts />
 
       <footer className="inspired-footer">
         Inspired by the excellent <a href="https://usdc.cool/" target="_blank" rel="noreferrer">usdc.cool</a>{" "}

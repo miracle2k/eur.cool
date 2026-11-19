@@ -39,6 +39,12 @@ export default function MethodologyPage() {
               <code> data/eurStablecoinRegistry.ts</code>.
             </li>
             <li>
+              <strong>Active supply:</strong> assets are excluded from the headline and chain totals from a
+              documented retirement date. EEUR is retired from 9 April 2024, when its issuer ended buybacks and
+              price-support operations. Its remaining token balances are shown separately under retired assets.
+              This exclusion does not assert that tokens were burned, reserves disappeared, or all claims were settled.
+            </li>
+            <li>
               <strong>Issuance source:</strong> every included amount is read from a chain-native method (EVM
               <code> totalSupply()</code>, Solana mint supply, Stellar issued balances, XRPL obligations, Algorand ASA
               state, Cosmos bank denom supply, Tezos token totals, and IC ledger metrics).
@@ -62,6 +68,8 @@ export default function MethodologyPage() {
               are stored locally in <code> data/issuance-history.json</code>. 1h/24h/7d/30d changes are computed only
               from contracts present in both snapshots being compared, so newly added contracts join each interval
               once enough history exists for that window.
+              Retired contracts are excluded from both sides of a change comparison, so retirement is not reported
+              as a redemption. Raw contract observations and their original observation times remain recorded.
             </li>
           </ol>
           <p style={{ marginTop: "0.8rem", color: "#555d70" }}>

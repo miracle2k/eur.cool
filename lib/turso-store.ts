@@ -6,7 +6,7 @@ type RunKind = "full" | "partial" | "manual";
 type ObservationStatus = "ok" | "error" | "unsupported";
 type ObservationSource = "rpc" | "unavailable";
 
-type SnapshotValueState = "fresh" | "carried" | "missing";
+type SnapshotValueState = "fresh" | "carried" | "missing" | "archived";
 
 export type SnapshotContractRow = {
   contractKey: string;
@@ -19,9 +19,9 @@ export type SnapshotContractRow = {
   kind: "native" | "bridged";
   supply: number | null;
   decimals: number | null;
-  source: "rpc" | "unavailable" | "carried";
+  source: "rpc" | "unavailable" | "carried" | "archived";
   method: string;
-  status: "ok" | "error" | "unsupported" | "stale";
+  status: "ok" | "error" | "unsupported" | "stale" | "retired";
   error?: string;
   valueState: SnapshotValueState;
   valueObservedAt: string | null;

@@ -62,7 +62,7 @@ async function loadModule(relativePath) {
 
 const db = createClient({ url });
 try {
-  const { readIntervalBaselinesFromTurso, appendSnapshotToTurso } = await loadModule("lib/turso-store.ts");
+  const { readIntervalBaselinesFromTurso, appendSnapshotToTurso, readLatestSnapshotContractValues } = await loadModule("lib/turso-store.ts");
   const { computeIntervalChanges } = await loadModule("lib/history.ts");
   const hour = 60 * 60 * 1000;
   const now = Math.floor(Date.now() / hour) * hour;
@@ -140,6 +140,26 @@ try {
   assert.deepEqual((await db.execute("SELECT contract_key, refresh_run_id FROM contract_observations")).rows.map((r) => ({ ...r })), [{ contract_key: "retained", refresh_run_id: null }]);
   assert.deepEqual((await db.execute("SELECT id FROM refresh_runs")).rows.map((r) => r.id), [2]);
 
+  // Archival balances survive persistence without acquiring a new observation date.
+  const observedAt = "2023-01-01T00:00:00.000Z";
+  await appendSnapshotToTurso({
+    capturedAt: new Date(now + 1000).toISOString(), nativeTotal: 0, withBridgedTotal: 0,
+    sourceStats: { trackedTokens: 0, trackedContracts: 0, rpcSuccessContracts: 0, unsupportedContracts: 0, failedContracts: 0 },
+    freshContracts: 0, carriedContracts: 1, missingContracts: 0, payload: {},
+    contracts: [{
+      contractKey: "retired", tokenId: "sample", tokenSymbol: "SAMPLE", tokenName: "Sample",
+      chainId: "sample", chainName: "Sample", address: "retired", kind: "bridged",
+      supply: 123, decimals: 6, source: "archived", method: "sample:on-chain", status: "retired",
+      valueState: "archived", valueObservedAt: observedAt,
+    }],
+  });
+  assert.deepEqual((await readLatestSnapshotContractValues()).get("retired"), {
+    supply: 123, decimals: 6, method: "sample:on-chain", valueObservedAt: observedAt,
+  });
+  assert.deepEqual({ ...(await db.execute("SELECT supply, source, status, value_state, value_observed_at FROM issuance_snapshot_contracts WHERE contract_key = 'retired'")).rows[0] }, {
+    supply: 123, source: "archived", status: "retired", value_state: "archived", value_observed_at: observedAt,
+  });
+
   const queries = statements.filter((statement) => typeof statement === "object" && /SELECT id, captured_at|DELETE FROM/.test(statement.sql));
   const uniqueQueries = [...new Map(queries.map((query) => [query.sql, query])).values()];
   assert.equal(uniqueQueries.length, 4); // one baseline lookup and three retention statements
@@ -149,7 +169,7 @@ try {
     assert.ok(details.some((detail) => detail.startsWith("SEARCH ")), details.join("\n"));
     assert.ok(!details.some((detail) => detail.startsWith("SCAN ")), details.join("\n"));
   }
-  console.log("Turso query checks passed: bounded baselines, unchanged interval changes, sparse history, indexed retention, and preserved evidence.");
+  console.log("Turso query checks passed: bounded baselines, unchanged interval changes, sparse history, indexed retention, and preserved archival values and dates.");
 } finally {
   db.close();
   for (const client of clients) client.close();

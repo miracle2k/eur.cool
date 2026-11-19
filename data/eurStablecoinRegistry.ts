@@ -244,13 +244,19 @@ export const EUR_STABLECOIN_REGISTRY: StablecoinRegistryEntry[] = [
     id: "e-money-eur",
     symbol: "EEUR",
     name: "e-Money EUR",
+    retirement: {
+      effectiveDate: "2024-04-09",
+      reason: "The issuer ended EEUR buybacks and price-support operations.",
+      sourceUrl: "https://web.archive.org/web/20240529154141id_/https://e-money.com/",
+    },
     contracts: [
       {
         chainId: "osmosis",
         address: "ibc/5973C068568365FFF40DEDCF1A1CB7582B6116B731CD31A12231AE25E20B871F",
-        kind: "native",
+        kind: "bridged",
+        observeAfterRetirement: true,
       },
-      { chainId: "evmos", address: "0x5db67696c3c088dfbf588d3dd849f44266ff0ffa", kind: "native" },
+      { chainId: "evmos", address: "0x5db67696c3c088dfbf588d3dd849f44266ff0ffa", kind: "bridged" },
     ],
   },
   {

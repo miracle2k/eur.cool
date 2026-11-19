@@ -4,6 +4,13 @@ export type ContractDefinition = {
   chainId: string;
   address: string;
   kind: ContractKind;
+  observeAfterRetirement?: boolean;
+};
+
+export type AssetRetirement = {
+  effectiveDate: string;
+  reason: string;
+  sourceUrl: string;
 };
 
 export type StablecoinRegistryEntry = {
@@ -11,16 +18,18 @@ export type StablecoinRegistryEntry = {
   symbol: string;
   name: string;
   contracts: ContractDefinition[];
+  retirement?: AssetRetirement;
 };
 
 export type ContractSupply = ContractDefinition & {
   chainName: string;
   supply: number | null;
   decimals: number | null;
-  source: "rpc" | "unavailable" | "carried";
+  source: "rpc" | "unavailable" | "carried" | "archived";
   method: string;
-  status: "ok" | "error" | "unsupported" | "stale";
+  status: "ok" | "error" | "unsupported" | "stale" | "retired";
   error?: string;
+  observedAt?: string | null;
 };
 
 export type StablecoinIssuance = {
@@ -31,6 +40,7 @@ export type StablecoinIssuance = {
   nativeSupply: number;
   bridgedSupply: number;
   totalSupply: number;
+  retirement?: AssetRetirement;
 };
 
 export type ChainAggregate = {
@@ -55,6 +65,7 @@ export type IssuanceSnapshot = {
   native: number;
   withBridged: number;
   contractSupplies: Record<string, number>;
+  contractObservedAt?: Record<string, string | null>;
 };
 
 export type IssuanceResponse = {
@@ -66,11 +77,15 @@ export type IssuanceResponse = {
   changes: IntervalChange[];
   chains: ChainAggregate[];
   stablecoins: StablecoinIssuance[];
+  retiredStablecoins?: StablecoinIssuance[];
+  changesUnavailableReason?: string;
   sourceStats: {
     trackedTokens: number;
     trackedContracts: number;
     rpcSuccessContracts: number;
     unsupportedContracts: number;
     failedContracts: number;
+    retiredTokens?: number;
+    retiredContracts?: number;
   };
 };

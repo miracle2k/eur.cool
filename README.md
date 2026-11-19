@@ -8,6 +8,7 @@ EUR stablecoin issuance tracker inspired by usdc.cool.
 - Reads supply from chain-native methods (EVM `totalSupply()`, Solana mint supply, Stellar issued balances, XRPL obligations, Algorand ASA state, Cosmos denom supply, Tezos token totals, IC ledger metrics)
 - Reports Algorand ASA amounts as reserve-excluded circulating supply (ASA total minus the configured reserve balance), not configured ASA total
 - Separates **native** vs **bridged** supply
+- Reports active supply, with retired assets and their recorded token balances shown separately
 - Enforces strict on-chain attribution (no off-chain market-data remainder)
 - Computes interval changes (1h/24h/7d/30d) from overlap-only per-contract history
 - Exposes:
@@ -40,6 +41,12 @@ Check RPC fallback and zero-issuance handling with isolated response fixtures:
 
 ```bash
 npm run check:non-evm
+```
+
+Check retirement dates, raw balance preservation, active coverage, and interval comparisons:
+
+```bash
+npm run check:retirement
 ```
 
 Validate the registered Solana mints against a live RPC endpoint:
@@ -96,6 +103,23 @@ until database access is restored.
 
 Set `SOLANA_RPC_URLS` or `SOLANA_RPC_URL` to use a dedicated Solana provider. The shared
 Solana mainnet endpoint is a rate-limited fallback, without an uptime guarantee.
+
+## Retired assets
+
+The registry records an asset's retirement date, reason, and source. Retired assets contribute
+zero to active totals and are excluded from both sides of interval comparisons. Their raw
+contract balances and original observation times remain in history; retirement is not a burn
+or redemption. Existing stored snapshots are not rewritten. Legacy API payloads are projected
+on read, with changes left unavailable until a new refresh can calculate comparable figures.
+
+e-Money EEUR is retired from **9 April 2024**, when its issuer ended buybacks and price-support
+operations ([archived issuer notice](https://web.archive.org/web/20240529154141id_/https://e-money.com/)).
+This applies to the `e-money-eur` issuer only, not ARYZE's separate EEUR token. It does not assert
+that remaining tokens were burned or all holders were paid. Osmosis can still provide raw EEUR
+voucher balances. Reads from the inactive Evmos network are skipped. Unavailable retired sources
+retain their last known balance and observation time, or remain unknown if none was recorded.
+Retired sources do not count as active coverage failures. Active sources keep the normal stale
+carry-forward limit.
 
 ## Data files
 
